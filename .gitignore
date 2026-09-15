@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log
+.DS_Store
+Thumbs.db
+
+# Java / Maven
+backend/target/
+*.class
+
+# Local databases and runtime data
+mysql-data/
+backend/mysql-data/
+data/
+
+# Test and tool output
+coverage/
+.vite/
+.vite-temp/
+playwright-report/
+test-results/
