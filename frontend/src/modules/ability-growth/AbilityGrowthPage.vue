@@ -18,15 +18,18 @@ import {
   Save,
   Sparkles,
   Target,
+  Trash2,
   X,
 } from 'lucide-vue-next'
 import AbilityGraph from './components/AbilityGraph.vue'
 import KnowledgeCatalog from './components/KnowledgeCatalog.vue'
 import { useAbilityStore } from './stores/abilityStore'
 import type { SkillLevel, SkillNode, SkillStatus } from './types'
+import { buildCatalogRelations } from './utils/catalogRelations'
 import {
   knowledgeCatalogService,
   type KnowledgeStackItem,
+  type KnowledgeStackStage,
   type KnowledgeTrack,
   type KnowledgeTrackId,
 } from './services/knowledgeCatalogService'
@@ -38,6 +41,11 @@ const knowledgeTracks = ref<KnowledgeTrack[]>([])
 const selectedKnowledgeTrackId = ref<KnowledgeTrackId>('network')
 const generatingKnowledge = ref(false)
 const knowledgeGenerationError = ref('')
+const catalogSelection = ref<{
+  item: KnowledgeStackItem
+  stage: KnowledgeStackStage
+  track: KnowledgeTrack
+} | null>(null)
 const levelLabels = ['不了解', '了解', '能实践', '熟练', '可指导']
 const statusOptions: Array<{ value: SkillStatus; label: string }> = [
   { value: 'mastered', label: '已掌握' },
@@ -58,17 +66,27 @@ function nodeName(id: string) {
 }
 
 function openNewNode() {
+  catalogSelection.value = null
   Object.assign(form, { id: '', name: '', description: '', level: 1, status: 'developing' })
   showEditor.value = true
 }
 
 function openEditNode() {
   if (!store.selectedNode) return
+  catalogSelection.value = null
   Object.assign(form, store.selectedNode)
   showEditor.value = true
 }
 
-function openCatalogSkill(item: KnowledgeStackItem) {
+async function deleteSelectedNode() {
+  const node = store.selectedNode
+  if (!node) return
+  const confirmed = window.confirm(`确定删除“${node.name}”吗？该节点的所有关联连线也会被移除。`)
+  if (!confirmed) return
+  await store.deleteNode(node.id)
+}
+function openCatalogSkill(item: KnowledgeStackItem, track: KnowledgeTrack, stage: KnowledgeStackStage) {
+  catalogSelection.value = { item, track, stage }
   Object.assign(form, {
     id: '',
     name: item.name,
@@ -114,7 +132,19 @@ async function submitNode() {
     x: isNew ? 0 : store.selectedNode?.x ?? 0,
     y: isNew ? 0 : store.selectedNode?.y ?? 0,
   }
+  const existingNodes = store.graph?.nodes ?? []
+  const relations = isNew && catalogSelection.value
+    ? buildCatalogRelations(
+        catalogSelection.value.track,
+        catalogSelection.value.stage,
+        catalogSelection.value.item,
+        node.id,
+        existingNodes,
+      )
+    : []
   await store.saveNode(node)
+  await store.saveRelations(relations)
+  catalogSelection.value = null
   showEditor.value = false
 }
 
@@ -235,7 +265,10 @@ onMounted(async () => {
         <aside v-if="store.selectedNode" class="node-inspector">
           <div class="inspector-top">
             <span class="node-status" :class="store.selectedNode.status">{{ statusOptions.find((item) => item.value === store.selectedNode?.status)?.label }}</span>
-            <button class="icon-button" type="button" aria-label="编辑当前能力" title="编辑能力" @click="openEditNode"><Pencil :size="17" /></button>
+            <div class="inspector-actions">
+              <button class="icon-button" type="button" aria-label="编辑当前能力" title="编辑能力" @click="openEditNode"><Pencil :size="17" /></button>
+              <button class="icon-button danger-button" type="button" aria-label="删除当前能力" title="删除能力" @click="deleteSelectedNode"><Trash2 :size="17" /></button>
+            </div>
           </div>
           <h2>{{ store.selectedNode.name }}</h2>
           <p>{{ store.selectedNode.description || '暂未填写能力说明' }}</p>

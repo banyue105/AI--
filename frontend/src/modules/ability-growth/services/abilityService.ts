@@ -101,9 +101,29 @@ export const abilityService = {
     return graph
   },
 
-  async addRelation(relation: SkillRelation): Promise<AbilityGraphData> {
+  async deleteNode(nodeId: string): Promise<AbilityGraphData> {
+    try {
+      await request(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
+    } catch {
+      // The local fallback remains fully usable while the backend is unavailable.
+    }
     const graph = readLocal()
-    if (!graph.relations.some((item) => item.from === relation.from && item.to === relation.to)) {
+    graph.nodes = graph.nodes.filter((node) => node.id !== nodeId)
+    graph.relations = graph.relations.filter((relation) => relation.from !== nodeId && relation.to !== nodeId)
+    graph.updatedAt = new Date().toISOString()
+    writeLocal(graph)
+    return graph
+  },
+  async addRelation(relation: SkillRelation): Promise<AbilityGraphData> {
+    try {
+      await request('/ability/relations', { method: 'POST', body: JSON.stringify(relation) })
+    } catch {
+      // Keep the relationship available in the local demo when the backend is unavailable.
+    }
+    const graph = readLocal()
+    if (!graph.relations.some(
+      (item) => item.from === relation.from && item.to === relation.to && item.type === relation.type,
+    )) {
       graph.relations.push(relation)
     }
     graph.updatedAt = new Date().toISOString()

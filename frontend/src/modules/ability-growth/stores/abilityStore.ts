@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { abilityService } from '../services/abilityService'
-import type { AbilityGraphData, GrowthPathStep, ParseResult, SkillNode } from '../types'
+import type { AbilityGraphData, GrowthPathStep, ParseResult, SkillNode, SkillRelation } from '../types'
 import { findFreeNodePosition, resolveNodeOverlaps } from '../utils/graphLayout'
 
 export const useAbilityStore = defineStore('ability-growth', () => {
@@ -58,6 +58,23 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     flash('能力节点已保存')
   }
 
+  async function deleteNode(nodeId: string) {
+    if (!graph.value?.nodes.some((node) => node.id === nodeId)) return
+    const savedGraph = await abilityService.deleteNode(nodeId)
+    graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+    path.value = await abilityService.generatePath(graph.value)
+    selectedId.value = graph.value.nodes[0]?.id ?? null
+    flash('能力节点已删除')
+  }
+  async function saveRelations(relations: SkillRelation[]) {
+    if (!graph.value || !relations.length) return
+    let savedGraph = graph.value
+    for (const relation of relations) savedGraph = await abilityService.addRelation(relation)
+    graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+    path.value = await abilityService.generatePath(graph.value)
+    flash(`已建立 ${relations.length} 条方向关联`)
+  }
+
   async function parse(input: string) {
     parsing.value = true
     parseResult.value = null
@@ -111,6 +128,8 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     notice,
     load,
     saveNode,
+    deleteNode,
+    saveRelations,
     parse,
     acceptSuggestions,
     regeneratePath,

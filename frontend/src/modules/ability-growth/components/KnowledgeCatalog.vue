@@ -13,7 +13,12 @@ import {
   Sparkles,
 } from 'lucide-vue-next'
 import type { SkillNode } from '../types'
-import type { KnowledgeStackItem, KnowledgeTrack, KnowledgeTrackId } from '../services/knowledgeCatalogService'
+import type {
+  KnowledgeStackItem,
+  KnowledgeStackStage,
+  KnowledgeTrack,
+  KnowledgeTrackId,
+} from '../services/knowledgeCatalogService'
 
 const props = defineProps<{
   tracks: KnowledgeTrack[]
@@ -24,7 +29,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  add: [item: KnowledgeStackItem]
+  add: [item: KnowledgeStackItem, track: KnowledgeTrack, stage: KnowledgeStackStage]
   select: [id: string]
   generate: [query: string]
   'update:selectedTrackId': [id: KnowledgeTrackId]
@@ -61,10 +66,10 @@ function trackCoverage(track: KnowledgeTrack) {
   }
 }
 
-function handleStackItem(item: KnowledgeStackItem) {
+function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
   const match = findPersonalSkill(item)
   if (match) emit('select', match.id)
-  else emit('add', item)
+  else if (selectedTrack.value) emit('add', item, selectedTrack.value, stage)
 }
 </script>
 
@@ -135,7 +140,7 @@ function handleStackItem(item: KnowledgeStackItem) {
               class="stack-item"
               :class="statusClass(item)"
               :aria-label="`${item.name}，${statusLabel(item)}`"
-              @click="handleStackItem(item)"
+              @click="handleStackItem(item, stage)"
             >
               <span class="stack-status-icon">
                 <Check v-if="statusLabel(item) === '已掌握'" :size="14" />

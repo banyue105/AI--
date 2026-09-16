@@ -139,17 +139,38 @@ h1, h2, h3 { text-wrap: balance; }
 .tree-stats span { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; white-space: nowrap; }
 .tree-stats strong { color: var(--text); font-size: 11px; }
 .graph-panel { overflow: hidden; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
-.graph-toolbar { min-height: 52px; padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.legend { display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: 11px; }
-.legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.graph-toolbar { min-height: 52px; padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tree-mode-switch, .orientation-switch { padding: 3px; border-radius: 6px; background: var(--surface-subtle); display: inline-flex; align-items: center; gap: 2px; }
+.tree-mode-switch button, .orientation-switch button { min-height: 30px; padding: 0 11px; border: 0; border-radius: 4px; color: var(--text-muted); background: transparent; font-size: 11px; cursor: pointer; }
+.tree-mode-switch button:hover, .orientation-switch button:hover { color: var(--text); background: var(--surface); }
+.tree-mode-switch button.active, .orientation-switch button.active { color: var(--brand); background: var(--surface); box-shadow: 0 1px 3px rgba(25, 42, 70, .1); font-weight: 700; }
+.orientation-switch button { width: 30px; padding: 0; display: grid; place-items: center; }
 .graph-actions { display: flex; align-items: center; gap: 4px; }
 .graph-actions .icon-button { width: 32px; height: 32px; }
+.toolbar-divider { width: 1px; height: 20px; margin: 0 3px; background: var(--border); }
 .zoom-value { width: 46px; height: 32px; padding: 0; border: 0; color: var(--text-muted); background: transparent; font-size: 11px; cursor: pointer; }
-.graph-viewport { height: 470px; overflow: auto; background-color: var(--surface-subtle); background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 18px 18px; }
+.graph-subbar { min-height: 38px; padding: 6px 11px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: color-mix(in srgb, var(--surface-subtle) 68%, var(--surface)); }
+.view-description { color: var(--text-muted); font-size: 11px; }
+.direction-picker { min-width: 0; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+.direction-picker > span { flex: 0 0 auto; color: var(--text-muted); font-size: 10px; }
+.direction-picker label { flex: 0 0 auto; min-height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-muted); background: var(--surface); display: inline-flex; align-items: center; gap: 5px; font-size: 10px; cursor: pointer; }
+.direction-picker label.active { border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); color: var(--brand); background: var(--brand-soft); }
+.direction-picker input { width: 12px; height: 12px; margin: 0; accent-color: var(--brand); }
+.legend { display: flex; align-items: center; gap: 12px; color: var(--text-muted); font-size: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.graph-viewport { position: relative; height: 470px; overflow: auto; background-color: var(--surface-subtle); background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 18px 18px; }
+.graph-empty { height: 100%; color: var(--text-muted); display: grid; place-items: center; font-size: 12px; }
 .graph-canvas { position: relative; width: 1040px; height: 470px; transform-origin: top left; }
+.graph-columns { position: absolute; inset: 0; pointer-events: none; }
+.graph-columns span { position: absolute; width: 144px; color: var(--text-muted); font-size: 10px; font-weight: 700; text-align: center; }
+.graph-canvas.orientation-tb .graph-columns span { width: auto; min-width: 40px; transform: translateY(-50%); text-align: left; }
+.graph-lane { position: absolute; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 62%, transparent); pointer-events: none; }
+.graph-lane > span { position: absolute; top: 7px; left: 12px; color: var(--text-muted); font-size: 10px; }
+.graph-canvas.orientation-tb .graph-lane { border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.graph-canvas.orientation-tb .graph-lane > span { top: 8px; left: 9px; writing-mode: vertical-rl; }
 .edges { position: absolute; inset: 0; pointer-events: none; }
-.edges line { stroke: var(--text-muted); stroke-width: 1.2; opacity: .55; }
-.edges line.related { stroke-dasharray: 5 5; }
+.edges > path { fill: none; stroke: var(--text-muted); stroke-width: 1.2; opacity: .55; }
+.edges > path.related, .edges > path.cross-direction { stroke-dasharray: 5 5; opacity: .72; }
 .edges marker path { fill: var(--text-muted); }
 .skill-node { position: absolute; width: 144px; min-height: 54px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; text-align: left; color: var(--text); background: var(--surface); cursor: pointer; box-shadow: var(--shadow-soft); transition: border-color .15s, box-shadow .15s; }
 .skill-node:hover { border-color: var(--brand); }
@@ -167,6 +188,9 @@ h1, h2, h3 { text-wrap: balance; }
 .skill-list-item small { color: var(--text-muted); }
 .node-inspector { margin-top: 62px; min-height: 470px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); }
 .inspector-top { display: flex; justify-content: space-between; align-items: center; }
+.inspector-actions { display: flex; align-items: center; gap: 6px; }
+.danger-button { color: var(--danger, #c24b4b); }
+.danger-button:hover { border-color: var(--danger, #c24b4b); color: var(--danger, #c24b4b); background: color-mix(in srgb, var(--danger, #c24b4b) 9%, var(--surface)); }
 .node-inspector h2 { margin: 14px 0 4px; font-size: 22px; }
 .node-inspector > p { min-height: 36px; margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
 .level-block { margin-top: 18px; padding: 13px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
