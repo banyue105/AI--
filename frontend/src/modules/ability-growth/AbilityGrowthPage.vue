@@ -7,7 +7,9 @@ import {
   Check,
   CheckCircle2,
   CircleAlert,
+  ClipboardCheck,
   FileCheck2,
+  GripVertical,
   Info,
   Layers3,
   Network,
@@ -24,6 +26,7 @@ import {
 import AbilityGraph from './components/AbilityGraph.vue'
 import KnowledgeCatalog from './components/KnowledgeCatalog.vue'
 import { useAbilityStore } from './stores/abilityStore'
+import { skillAssessmentService, type SkillQuestion } from './services/skillAssessmentService'
 import type { SkillLevel, SkillNode, SkillStatus } from './types'
 import { buildCatalogRelations } from './utils/catalogRelations'
 import {
@@ -60,6 +63,29 @@ const deadlineDays = computed(() => {
   return Math.max(0, Math.ceil((new Date(store.graph.goal.deadline).getTime() - Date.now()) / 86400000))
 })
 const selectedEvidence = computed(() => store.evidenceForSelected)
+const showPracticeForm = ref(false)
+const practiceSaving = ref(false)
+const practiceForm = reactive({ title: '', note: '' })
+const showAssessment = ref(false)
+const assessmentLoading = ref(false)
+const assessmentSubmitted = ref(false)
+const assessmentQuestions = ref<SkillQuestion[]>([])
+const assessmentAnswers = ref<Record<string, number>>({})
+const assessmentScore = computed(() => assessmentQuestions.value.reduce(
+  (score, question) => score + (assessmentAnswers.value[question.id] === question.answerIndex ? 1 : 0),
+  0,
+))
+const assessmentComplete = computed(() =>
+  assessmentQuestions.value.length > 0
+  && assessmentQuestions.value.every((question) => assessmentAnswers.value[question.id] !== undefined),
+)
+const assessmentSuggestion = computed(() => {
+  if (!assessmentQuestions.value.length) return ''
+  const ratio = assessmentScore.value / assessmentQuestions.value.length
+  if (ratio === 1) return '基础概念稳定，建议继续用真实任务验证。'
+  if (ratio >= 0.6) return '已有一定基础，建议针对错题补充实践。'
+  return '基础概念仍需巩固，可以先完成一次最小练习。'
+})
 
 function nodeName(id: string) {
   return store.graph?.nodes.find((node) => node.id === id)?.name ?? id
@@ -148,15 +174,70 @@ async function submitNode() {
   showEditor.value = false
 }
 
+function closeInspector() {
+  store.selectedId = null
+}
+
+function scrollToSkillDetail() {
+  window.setTimeout(() => {
+    document.querySelector('.skill-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
+
+function resetInspectorWorkflows() {
+  showPracticeForm.value = false
+  practiceForm.title = ''
+  practiceForm.note = ''
+  showAssessment.value = false
+  assessmentLoading.value = false
+  assessmentSubmitted.value = false
+  assessmentQuestions.value = []
+  assessmentAnswers.value = {}
+}
+
+async function startAssessment() {
+  if (!store.selectedNode) return
+  showAssessment.value = true
+  assessmentLoading.value = true
+  assessmentSubmitted.value = false
+  assessmentAnswers.value = {}
+  try {
+    assessmentQuestions.value = await skillAssessmentService.getQuestions(store.selectedNode)
+  } finally {
+    assessmentLoading.value = false
+  }
+}
+
+function submitAssessment() {
+  if (!assessmentComplete.value) return
+  assessmentSubmitted.value = true
+}
+
+async function savePracticeRecord() {
+  if (!store.selectedNode || !practiceForm.title.trim()) return
+  practiceSaving.value = true
+  try {
+    await store.addEvidence(store.selectedNode.id, {
+      title: practiceForm.title,
+      note: practiceForm.note,
+    })
+    practiceForm.title = ''
+    practiceForm.note = ''
+    showPracticeForm.value = false
+  } finally {
+    practiceSaving.value = false
+  }
+}
+
+function formatEvidenceDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-CN')
+}
+
 watch(
   () => store.selectedId,
-  () => {
-    if (window.innerWidth < 720 && store.selectedId) {
-      window.setTimeout(() => document.querySelector('.node-inspector')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100)
-    }
-  },
+  () => resetInspectorWorkflows(),
 )
-
 onMounted(async () => {
   await Promise.all([
     store.load(),
@@ -257,42 +338,131 @@ onMounted(async () => {
           <AbilityGraph
             :nodes="store.graph.nodes"
             :relations="store.graph.relations"
+            :tracks="knowledgeTracks"
             :selected-id="store.selectedId"
             @select="store.selectedId = $event"
-          />
-        </section>
+            @delete-many="store.deleteNodes"
 
-        <aside v-if="store.selectedNode" class="node-inspector">
-          <div class="inspector-top">
-            <span class="node-status" :class="store.selectedNode.status">{{ statusOptions.find((item) => item.value === store.selectedNode?.status)?.label }}</span>
-            <div class="inspector-actions">
-              <button class="icon-button" type="button" aria-label="编辑当前能力" title="编辑能力" @click="openEditNode"><Pencil :size="17" /></button>
-              <button class="icon-button danger-button" type="button" aria-label="删除当前能力" title="删除能力" @click="deleteSelectedNode"><Trash2 :size="17" /></button>
-            </div>
-          </div>
-          <h2>{{ store.selectedNode.name }}</h2>
-          <p>{{ store.selectedNode.description || '暂未填写能力说明' }}</p>
-          <div class="level-block">
-            <div><span>掌握程度</span><strong>{{ levelLabels[store.selectedNode.level] }}</strong></div>
-            <div class="level-track" :aria-label="`掌握程度 ${store.selectedNode.level}/4`">
-              <i v-for="index in 5" :key="index" :class="{ active: index - 1 <= store.selectedNode.level }" />
-            </div>
-          </div>
-          <div class="evidence-block">
-            <h3><FileCheck2 :size="17" /> 实践证据 <span>{{ selectedEvidence.length }}</span></h3>
-            <div v-if="selectedEvidence.length" class="evidence-list">
-              <div v-for="item in selectedEvidence" :key="item.id">
-                <CheckCircle2 :size="17" />
-                <span><strong>{{ item.title }}</strong><small>{{ item.note }}</small></span>
+          >
+            <template #inspector="{ startDrag, closePopover }">
+              <aside v-if="store.selectedNode" class="skill-node-summary" aria-label="技能摘要" @click.stop>
+                <div class="summary-drag-handle" title="拖动信息框" @pointerdown="startDrag">
+                  <GripVertical :size="15" />
+                  <span>技能摘要</span>
+                </div>
+                <button class="summary-close" type="button" aria-label="关闭技能摘要" title="关闭" @click="closePopover"><X :size="15" /></button>
+                <span class="node-status" :class="store.selectedNode.status">{{ statusOptions.find((item) => item.value === store.selectedNode?.status)?.label }}</span>
+                <h3>{{ store.selectedNode.name }}</h3>
+                <p>{{ store.selectedNode.description || '暂未填写能力说明' }}</p>
+                <div class="summary-level">
+                  <span>掌握程度</span>
+                  <strong>{{ levelLabels[store.selectedNode.level] }}</strong>
+                </div>
+                <button class="secondary-button summary-detail-button" type="button" @click="scrollToSkillDetail">
+                  查看完整信息 <ArrowRight :size="15" />
+                </button>
+              </aside>
+            </template>
+          </AbilityGraph>
+
+          <section v-if="store.selectedNode" class="skill-detail-panel" aria-label="当前技能完整信息">
+            <header class="skill-detail-header">
+              <div>
+                <div class="skill-detail-kicker">
+                  <span class="node-status" :class="store.selectedNode.status">{{ statusOptions.find((item) => item.value === store.selectedNode?.status)?.label }}</span>
+                  <span>当前选中的技能</span>
+                </div>
+                <h2>{{ store.selectedNode.name }}</h2>
+                <p>{{ store.selectedNode.description || '暂未填写能力说明' }}</p>
+              </div>
+              <div class="inspector-actions">
+                <button class="secondary-button compact" type="button" @click="openEditNode"><Pencil :size="16" /> 编辑</button>
+                <button class="icon-button danger-button" type="button" aria-label="删除当前能力" title="删除能力" @click="deleteSelectedNode"><Trash2 :size="16" /></button>
+                <button class="icon-button" type="button" aria-label="关闭技能详情" title="关闭" @click="closeInspector"><X :size="17" /></button>
+              </div>
+            </header>
+
+            <div class="skill-detail-content">
+              <div class="skill-detail-overview">
+                <div class="level-block">
+                  <div><span>掌握程度</span><strong>{{ levelLabels[store.selectedNode.level] }}</strong></div>
+                  <div class="level-track" :aria-label="'掌握程度 ' + store.selectedNode.level + '/4'">
+                    <i v-for="index in 5" :key="index" :class="{ active: index - 1 <= store.selectedNode.level }" />
+                  </div>
+                </div>
+                <div class="next-action">
+                  <span><Route :size="17" /></span>
+                  <div><small>建议下一步</small><strong>{{ store.selectedNode.level >= 2 ? '用一次真实任务验证稳定性' : '完成最小实践并记录过程' }}</strong></div>
+                </div>
+              </div>
+
+              <div class="skill-detail-workflows">
+                <section class="assessment-block">
+                  <div class="inspector-section-title">
+                    <h3><ClipboardCheck :size="17" /> 技能小测</h3>
+                    <button v-if="!showAssessment" class="text-button compact" type="button" @click="startAssessment">开始小测</button>
+                    <button v-else-if="assessmentSubmitted" class="text-button compact" type="button" @click="startAssessment">再测一次</button>
+                  </div>
+                  <p v-if="!showAssessment" class="inspector-section-note">通过 3 道基础选择题辅助校准当前水平。</p>
+                  <div v-else-if="assessmentLoading" class="inspector-inline-state"><span class="spinner" /> 正在加载题目…</div>
+                  <div v-else class="assessment-content">
+                    <article v-for="(question, questionIndex) in assessmentQuestions" :key="question.id" class="assessment-question">
+                      <strong><span>{{ questionIndex + 1 }}</span>{{ question.prompt }}</strong>
+                      <div class="assessment-options">
+                        <button
+                          v-for="(option, optionIndex) in question.options"
+                          :key="option"
+                          type="button"
+                          :disabled="assessmentSubmitted"
+                          :class="{
+                            selected: assessmentAnswers[question.id] === optionIndex,
+                            correct: assessmentSubmitted && optionIndex === question.answerIndex,
+                            wrong: assessmentSubmitted && assessmentAnswers[question.id] === optionIndex && optionIndex !== question.answerIndex,
+                          }"
+                          @click="assessmentAnswers[question.id] = optionIndex"
+                        >
+                          <i>{{ String.fromCharCode(65 + optionIndex) }}</i>{{ option }}
+                        </button>
+                      </div>
+                      <p v-if="assessmentSubmitted" class="answer-explanation">{{ question.explanation }}</p>
+                    </article>
+                    <div v-if="assessmentSubmitted" class="assessment-result">
+                      <CheckCircle2 :size="18" />
+                      <div><strong>{{ assessmentScore }}/{{ assessmentQuestions.length }} 题正确</strong><small>{{ assessmentSuggestion }}</small></div>
+                    </div>
+                    <button v-else class="secondary-button assessment-submit" type="button" :disabled="!assessmentComplete" @click="submitAssessment">提交测评</button>
+                    <p class="assessment-disclaimer">测评结果仅作辅助参考，不会自动修改技能等级。</p>
+                  </div>
+                </section>
+
+                <section class="evidence-block">
+                  <div class="inspector-section-title">
+                    <h3><FileCheck2 :size="17" /> 实践记录 <span>{{ selectedEvidence.length }}</span></h3>
+                    <button class="text-button compact" type="button" @click="showPracticeForm = !showPracticeForm">
+                      <X v-if="showPracticeForm" :size="14" />
+                      <Plus v-else :size="14" />
+                      {{ showPracticeForm ? '取消' : '添加记录' }}
+                    </button>
+                  </div>
+                  <form v-if="showPracticeForm" class="practice-form" @submit.prevent="savePracticeRecord">
+                    <label>实践名称<input v-model="practiceForm.title" required maxlength="40" placeholder="例如：完成接口鉴权" /></label>
+                    <label>过程与结果<textarea v-model="practiceForm.note" rows="3" maxlength="180" placeholder="记录完成内容、遇到的问题或产出" /></label>
+                    <button class="primary-button compact" type="submit" :disabled="practiceSaving || !practiceForm.title.trim()">
+                      {{ practiceSaving ? '保存中' : '保存记录' }}
+                    </button>
+                  </form>
+                  <div v-if="selectedEvidence.length" class="evidence-list">
+                    <div v-for="item in selectedEvidence" :key="item.id">
+                      <CheckCircle2 :size="17" />
+                      <span><strong>{{ item.title }}</strong><small>{{ item.note || '未填写补充说明' }}</small><time>{{ formatEvidenceDate(item.createdAt) }}</time></span>
+                    </div>
+                  </div>
+                  <p v-else class="empty-evidence">尚无实践记录，可以添加项目、练习或真实任务作为能力依据。</p>
+                </section>
               </div>
             </div>
-            <p v-else class="empty-evidence">尚无实践证据，当前等级需要后续验证。</p>
-          </div>
-          <div class="next-action">
-            <span><Route :size="17" /></span>
-            <div><small>建议下一步</small><strong>{{ store.selectedNode.level >= 2 ? '用一次真实任务验证稳定性' : '完成最小实践并记录过程' }}</strong></div>
-          </div>
-        </aside>
+          </section>
+        </section>
       </div>
 
       <KnowledgeCatalog

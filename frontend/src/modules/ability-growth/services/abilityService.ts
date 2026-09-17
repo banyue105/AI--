@@ -1,5 +1,6 @@
 import type {
   AbilityGraphData,
+  Evidence,
   GrowthPathStep,
   ParseResult,
   SkillLevel,
@@ -101,6 +102,19 @@ export const abilityService = {
     return graph
   },
 
+  async deleteNodes(nodeIds: string[]): Promise<AbilityGraphData> {
+    const ids = [...new Set(nodeIds)]
+    await Promise.allSettled(ids.map((nodeId) =>
+      request(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' }),
+    ))
+    const idSet = new Set(ids)
+    const graph = readLocal()
+    graph.nodes = graph.nodes.filter((node) => !idSet.has(node.id))
+    graph.relations = graph.relations.filter((relation) => !idSet.has(relation.from) && !idSet.has(relation.to))
+    graph.updatedAt = new Date().toISOString()
+    writeLocal(graph)
+    return graph
+  },
   async deleteNode(nodeId: string): Promise<AbilityGraphData> {
     try {
       await request(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
@@ -114,6 +128,31 @@ export const abilityService = {
     writeLocal(graph)
     return graph
   },
+  async addEvidence(skillId: string, input: Pick<Evidence, 'title' | 'note'>): Promise<AbilityGraphData> {
+    const evidence: Evidence = {
+      id: `evidence-${Date.now()}`,
+      title: input.title.trim(),
+      note: input.note.trim(),
+      createdAt: new Date().toISOString(),
+    }
+    try {
+      await request(`/ability/skills/${encodeURIComponent(skillId)}/evidence`, {
+        method: 'POST',
+        body: JSON.stringify(evidence),
+      })
+    } catch {
+      // Keep practice records usable locally until the backend evidence API is available.
+    }
+    const graph = readLocal()
+    const node = graph.nodes.find((item) => item.id === skillId)
+    if (!node) throw new Error('未找到需要记录实践的技能节点')
+    graph.evidence.push(evidence)
+    node.evidenceIds = [...new Set([...node.evidenceIds, evidence.id])]
+    graph.updatedAt = new Date().toISOString()
+    writeLocal(graph)
+    return graph
+  },
+
   async addRelation(relation: SkillRelation): Promise<AbilityGraphData> {
     try {
       await request('/ability/relations', { method: 'POST', body: JSON.stringify(relation) })

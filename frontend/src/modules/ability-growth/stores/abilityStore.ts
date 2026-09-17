@@ -32,7 +32,7 @@ export const useAbilityStore = defineStore('ability-growth', () => {
       const loadedGraph = await abilityService.getGraph()
       graph.value = { ...loadedGraph, nodes: resolveNodeOverlaps(loadedGraph.nodes) }
       path.value = await abilityService.generatePath(graph.value)
-      selectedId.value = graph.value.nodes[0]?.id ?? null
+      selectedId.value = null
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '能力数据加载失败'
     } finally {
@@ -58,12 +58,22 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     flash('能力节点已保存')
   }
 
+  async function deleteNodes(nodeIds: string[]) {
+    if (!graph.value) return
+    const existingIds = nodeIds.filter((id) => graph.value?.nodes.some((node) => node.id === id))
+    if (!existingIds.length) return
+    const savedGraph = await abilityService.deleteNodes(existingIds)
+    graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+    path.value = await abilityService.generatePath(graph.value)
+    if (!graph.value.nodes.some((node) => node.id === selectedId.value)) selectedId.value = null
+    flash(`已删除 ${existingIds.length} 个能力节点`)
+  }
   async function deleteNode(nodeId: string) {
     if (!graph.value?.nodes.some((node) => node.id === nodeId)) return
     const savedGraph = await abilityService.deleteNode(nodeId)
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
     path.value = await abilityService.generatePath(graph.value)
-    selectedId.value = graph.value.nodes[0]?.id ?? null
+    selectedId.value = null
     flash('能力节点已删除')
   }
   async function saveRelations(relations: SkillRelation[]) {
@@ -73,6 +83,13 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
     path.value = await abilityService.generatePath(graph.value)
     flash(`已建立 ${relations.length} 条方向关联`)
+  }
+
+  async function addEvidence(skillId: string, input: { title: string; note: string }) {
+    const savedGraph = await abilityService.addEvidence(skillId, input)
+    graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+    selectedId.value = skillId
+    flash('实践记录已添加')
   }
 
   async function parse(input: string) {
@@ -129,7 +146,9 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     load,
     saveNode,
     deleteNode,
+    deleteNodes,
     saveRelations,
+    addEvidence,
     parse,
     acceptSuggestions,
     regeneratePath,
