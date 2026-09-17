@@ -56,12 +56,17 @@ AI 处理信息 → 形成结构化数据 → 网页进行可视化展示 → �
 先完整阅读 plans/00-shared-integration.md、plans/00-ui-style-contract.md、你的模块任务书和 plans/04-integration-review.md。先检查仓库现状并运行现有页面，不要重建工程、不要修改共享视觉 token、不要覆盖其他模块。按任务书实现后，在 1280x720 和 360x800 验收，运行构建，并列出变更文件、接口、视觉复用项和已知问题。
 ```
 
+## 当前技术实现
+
+现有仓库已加入 Java 21、Spring Boot 3.5.16、MyBatis Spring Boot Starter 3.0.5、MySQL 8.4 和 Flyway 后端。首页、资料、能力图谱与知识目录 API 已实现；固定使用 `demo-user`，AI 为明确标注的本地 mock。任务书仍包含尚未完成的产品能力，后续开发应在现有代码上补齐。具体范围、接口和测试说明见 [backend/README.md](../backend/README.md)。
+
 ## 本地启动
 
 ```text
-数据库：docker compose -f backend/docker-compose.yml up -d
-后端：cd backend && mvn spring-boot:run
-前端：cd frontend && npm install && npm run dev
+配置：复制 backend/.env.example 为 backend/.env 并设置数据库密码
+数据库：在 backend 目录执行 docker compose up -d --wait
+后端：在 backend 目录执行 ./mvnw spring-boot:run（Windows：.\mvnw.cmd spring-boot:run）
+前端：在 frontend 目录执行 npm install 和 npm run dev
 ```
 
 前端开发服务器通过 `/api` 代理到 `http://localhost:8000`。生产部署时使用环境变量配置后端地址，不能把本地地址写死在业务组件中。

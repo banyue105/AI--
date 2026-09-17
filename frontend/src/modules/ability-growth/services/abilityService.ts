@@ -1,3 +1,4 @@
+import { apiRequest, canUseOfflineDemo } from '../../../core/api/apiClient'
 import type {
   AbilityGraphData,
   GrowthPathStep,
@@ -61,60 +62,69 @@ function writeLocal(data: AbilityGraphData) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), 900)
-  try {
-    const response = await fetch(`/api/v1${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
-    })
-    if (!response.ok) throw new Error(`API ${response.status}`)
-    return await response.json()
-  } finally {
-    window.clearTimeout(timeout)
+function demoGraphOrThrow(cause: unknown): AbilityGraphData {
+  if (!canUseOfflineDemo(cause)) throw cause
+  const graph = readLocal()
+  // A cached server graph must never silently become a writable local demo.
+  if (graph.source === 'api') throw cause
+  return graph
+}
+
+function useServerGraph(data: AbilityGraphData): AbilityGraphData {
+  if (!Array.isArray(data.nodes) || !Array.isArray(data.relations) || !Array.isArray(data.evidence) || !data.goal) {
+    throw new Error('后端返回的能力图谱格式无效，请稍后重试。')
   }
+  const graph: AbilityGraphData = { ...data, source: 'api' }
+  try {
+    writeLocal(graph)
+  } catch {
+    // Browser storage is only a cache; the confirmed server save remains valid.
+  }
+  return graph
 }
 
 export const abilityService = {
   async getGraph(): Promise<AbilityGraphData> {
     try {
-      return await request<AbilityGraphData>('/ability/graph')
-    } catch {
-      return readLocal()
+      return useServerGraph(await apiRequest<AbilityGraphData>('/ability/graph'))
+    } catch (cause) {
+      return demoGraphOrThrow(cause)
     }
   },
 
   async saveNode(node: SkillNode): Promise<AbilityGraphData> {
     try {
-      await request('/ability/skills', { method: 'POST', body: JSON.stringify(node) })
-    } catch {
-      // The local fallback remains fully usable while the backend is unavailable.
+      return useServerGraph(await apiRequest<AbilityGraphData>('/ability/skills', { method: 'POST', body: JSON.stringify(node) }))
+    } catch (cause) {
+      const graph = demoGraphOrThrow(cause)
+      const index = graph.nodes.findIndex((item) => item.id === node.id || item.name.toLowerCase() === node.name.toLowerCase())
+      if (index >= 0) graph.nodes[index] = { ...node, id: graph.nodes[index].id, x: graph.nodes[index].x, y: graph.nodes[index].y }
+      else graph.nodes.push(node)
+      graph.updatedAt = new Date().toISOString()
+      writeLocal(graph)
+      return graph
     }
-    const graph = readLocal()
-    const index = graph.nodes.findIndex((item) => item.id === node.id || item.name.toLowerCase() === node.name.toLowerCase())
-    if (index >= 0) graph.nodes[index] = { ...node, id: graph.nodes[index].id, x: graph.nodes[index].x, y: graph.nodes[index].y }
-    else graph.nodes.push(node)
-    graph.updatedAt = new Date().toISOString()
-    writeLocal(graph)
-    return graph
   },
 
   async addRelation(relation: SkillRelation): Promise<AbilityGraphData> {
-    const graph = readLocal()
-    if (!graph.relations.some((item) => item.from === relation.from && item.to === relation.to)) {
-      graph.relations.push(relation)
+    try {
+      return useServerGraph(await apiRequest<AbilityGraphData>('/ability/relations', { method: 'POST', body: JSON.stringify(relation) }))
+    } catch (cause) {
+      const graph = demoGraphOrThrow(cause)
+      if (!graph.relations.some((item) => item.from === relation.from && item.to === relation.to && item.type === relation.type)) {
+        graph.relations.push(relation)
+      }
+      graph.updatedAt = new Date().toISOString()
+      writeLocal(graph)
+      return graph
     }
-    graph.updatedAt = new Date().toISOString()
-    writeLocal(graph)
-    return graph
   },
 
   async parseInput(input: string): Promise<ParseResult> {
     try {
-      return await request<ParseResult>('/ability/parse', { method: 'POST', body: JSON.stringify({ input }) })
-    } catch {
+      return await apiRequest<ParseResult>('/ability/parse', { method: 'POST', body: JSON.stringify({ input }) })
+    } catch (cause) {
+      demoGraphOrThrow(cause)
       const text = input.toLowerCase()
       const candidates: Array<{ key: string; name: string; level: SkillLevel; status: SkillStatus }> = [
         { key: 'python', name: 'Python', level: 2, status: 'mastered' },
@@ -147,11 +157,13 @@ export const abilityService = {
 
   async generatePath(graph: AbilityGraphData): Promise<GrowthPathStep[]> {
     try {
-      return await request<GrowthPathStep[]>('/ability/path', {
+      return await apiRequest<GrowthPathStep[]>('/ability/path', {
         method: 'POST',
         body: JSON.stringify({ nodes: graph.nodes, relations: graph.relations }),
       })
-    } catch {
+    } catch (cause) {
+      if (graph.source === 'api') throw cause
+      demoGraphOrThrow(cause)
       const orderedIds = ['tcpip', 'http', 'shell', 'docker', 'security', 'monitor', 'deploy']
       return orderedIds
         .map((skillId) => {

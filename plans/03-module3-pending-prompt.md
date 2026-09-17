@@ -16,7 +16,7 @@
 - `backend/src/main/java/com/ican/assistant/AssistantApplication.java` Spring Boot 入口；
 - `backend/docker-compose.yml`，提供统一的 MySQL 8.4 本地服务；
 - `/api/v1/health`、`/api/v1/profile`、`/api/v1/modules` 基础接口；
-- Spring Data JPA + MySQL 数据库连接和初始化；
+- MyBatis + MySQL 数据库连接和初始化；
 - Java DTO/record 基础 schema；
 - Flyway 数据库迁移和初始 seed；
 - CORS、环境变量和统一错误响应；

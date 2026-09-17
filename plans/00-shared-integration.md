@@ -54,10 +54,10 @@
 ### 后端
 
 - Java 21 LTS；
-- Spring Boot 3.5.x + Spring Web + Bean Validation；
-- Spring Data JPA + MySQL 8.4 LTS；
+- Spring Boot 3.5.16 + Spring Web + Bean Validation；
+- MyBatis Spring Boot Starter 3.0.5 + MySQL 8.4 LTS；
 - Flyway 管理数据库迁移；
-- Maven 管理依赖和构建；
+- Maven Wrapper 管理依赖和构建；
 - JUnit 5 + Spring Boot Test 做接口和服务测试；
 - AI 调用统一放在 `backend/src/main/java/com/ican/assistant/core/ai/`，没有 API Key 时必须使用 deterministic mock；
 - CORS、环境变量和错误响应统一配置；
@@ -164,14 +164,17 @@ GET  /api/v1/modules
 }
 ```
 
-后端本地开发默认使用 MySQL 8.4，连接信息通过环境变量提供。必须提供 `backend/docker-compose.yml` 作为本地 MySQL 服务的统一启动方式，但不能提交真实密码。所有数据库访问通过 Spring Data JPA Repository/Service 层，Controller 不直接写 SQL；数据库结构通过 Flyway migration 管理。
+后端本地开发默认使用 MySQL 8.4，连接信息通过环境变量提供。必须提供 `backend/docker-compose.yml` 作为本地 MySQL 服务的统一启动方式，但不能提交真实密码。所有数据库访问通过 MyBatis Mapper/Service 层，Controller 不直接写 SQL；数据库结构通过 Flyway migration 管理。
 
-推荐的本地环境变量：
+本地配置以 `backend/.env.example` 为准；复制到 `backend/.env` 后设置密码。MySQL 默认仅监听 `127.0.0.1:3307`，API 默认仅监听 `127.0.0.1:8000`。推荐的本地环境变量：
 
 ```text
-DB_URL=jdbc:mysql://localhost:3306/ican_assistant?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_NAME=ican_assistant
 DB_USERNAME=ican
-DB_PASSWORD=ican_dev_only
+DB_PASSWORD=<自行设置>
+MYSQL_ROOT_PASSWORD=<自行设置>
 ```
 
 ## AI 输出规范
@@ -211,8 +214,8 @@ feature/module3-shell
 提交前必须：
 
 1. `npm install` 后前端可以启动；
-2. `mvn test` 成功，或使用项目约定的 Maven Wrapper 执行测试；
-3. `docker compose -f backend/docker-compose.yml up -d` 可以启动本地 MySQL，随后 `mvn spring-boot:run` 可以启动后端；
+2. 在 `backend` 中运行 `./mvnw test`（Windows：`.\mvnw.cmd test`）成功，记录 H2 与真实 MySQL 的实际验证范围；
+3. 配置 `backend/.env` 后，在 `backend` 中执行 `docker compose up -d --wait` 启动 MySQL，再使用 `./mvnw spring-boot:run`（Windows：`.\mvnw.cmd spring-boot:run`）启动后端；
 4. `npm run build` 成功；
 5. 后端接口测试或模块手动验收通过；
 6. 不提交 API Key、数据库密码、MySQL 数据目录、个人数据或大体积二进制文件；

@@ -11,6 +11,7 @@ export const useAbilityStore = defineStore('ability-growth', () => {
   const selectedId = ref<string | null>(null)
   const loading = ref(false)
   const parsing = ref(false)
+  const saving = ref(false)
   const error = ref('')
   const notice = ref('')
 
@@ -31,8 +32,8 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     try {
       const loadedGraph = await abilityService.getGraph()
       graph.value = { ...loadedGraph, nodes: resolveNodeOverlaps(loadedGraph.nodes) }
-      path.value = await abilityService.generatePath(graph.value)
       selectedId.value = graph.value.nodes[0]?.id ?? null
+      path.value = await abilityService.generatePath(graph.value)
     } catch (cause) {
       error.value = cause instanceof Error ? cause.message : '能力数据加载失败'
     } finally {
@@ -40,7 +41,7 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     }
   }
 
-  async function saveNode(node: SkillNode) {
+  async function persistNode(node: SkillNode): Promise<string> {
     const existing = graph.value?.nodes.find(
       (item) => item.id === node.id || item.name.toLowerCase() === node.name.toLowerCase(),
     )
@@ -51,50 +52,108 @@ export const useAbilityStore = defineStore('ability-growth', () => {
         : node
     const savedGraph = await abilityService.saveNode(positionedNode)
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
-    path.value = await abilityService.generatePath(graph.value)
     selectedId.value = graph.value.nodes.find(
       (item) => item.id === positionedNode.id || item.name.toLowerCase() === positionedNode.name.toLowerCase(),
     )?.id ?? null
-    flash('能力节点已保存')
+    return selectedId.value ?? positionedNode.id
+  }
+
+  async function refreshSavedPath() {
+    if (!graph.value) return
+    path.value = []
+    try {
+      path.value = await abilityService.generatePath(graph.value)
+    } catch (cause) {
+      error.value = `数据已保存，但成长路径刷新失败：${messageOf(cause)}`
+    }
+  }
+
+  async function saveNode(node: SkillNode): Promise<boolean> {
+    if (saving.value) return false
+    saving.value = true
+    error.value = ''
+    notice.value = ''
+    try {
+      await persistNode(node)
+      await refreshSavedPath()
+      if (!error.value) flash(graph.value?.source === 'api' ? '能力节点已保存到后端' : '能力节点已保存到本地演示')
+      return true
+    } catch (cause) {
+      error.value = `能力节点未保存：${messageOf(cause)}`
+      return false
+    } finally {
+      saving.value = false
+    }
   }
 
   async function parse(input: string) {
     parsing.value = true
     parseResult.value = null
+    error.value = ''
+    notice.value = ''
     try {
       parseResult.value = await abilityService.parseInput(input)
+    } catch (cause) {
+      error.value = `能力解析失败：${messageOf(cause)}`
     } finally {
       parsing.value = false
     }
   }
 
   async function acceptSuggestions() {
-    if (!parseResult.value || !graph.value) return
-    for (const node of parseResult.value.suggestedNodes) {
-      const existing = graph.value.nodes.find((item) => item.name.toLowerCase() === node.name.toLowerCase())
-      if (existing) {
-        await saveNode({
-          ...existing,
-          level: Math.max(existing.level, node.level) as SkillNode['level'],
-          status: existing.status === 'target' ? 'target' : Math.max(existing.level, node.level) >= 2 ? 'mastered' : 'developing',
-        })
-      } else {
-        await saveNode(node)
+    if (!parseResult.value || !graph.value || saving.value) return
+    saving.value = true
+    error.value = ''
+    notice.value = ''
+    try {
+      const suggestions = parseResult.value
+      const savedIds = new Map<string, string>()
+      for (const node of suggestions.suggestedNodes) {
+        const existing = graph.value!.nodes.find((item) => item.name.toLowerCase() === node.name.toLowerCase())
+        const savedId = await persistNode(existing ? {
+            ...existing,
+            level: Math.max(existing.level, node.level) as SkillNode['level'],
+            status: existing.status === 'target' ? 'target' : Math.max(existing.level, node.level) >= 2 ? 'mastered' : 'developing',
+          } : node)
+        savedIds.set(node.id, savedId)
       }
+      for (const relation of suggestions.suggestedRelations) {
+        const savedGraph = await abilityService.addRelation({
+          ...relation,
+          from: savedIds.get(relation.from) ?? relation.from,
+          to: savedIds.get(relation.to) ?? relation.to,
+        })
+        graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+      }
+      parseResult.value = null
+      await refreshSavedPath()
+      if (!error.value) flash(graph.value?.source === 'api' ? '候选能力与关系已保存到后端' : '候选能力与关系已保存到本地演示')
+    } catch (cause) {
+      error.value = `候选信息尚未全部保存，请重试：${messageOf(cause)}`
+    } finally {
+      saving.value = false
     }
-    parseResult.value = null
-    flash('候选能力已加入图谱')
   }
 
   async function regeneratePath() {
     if (!graph.value) return
-    path.value = await abilityService.generatePath(graph.value)
-    flash('成长路径已重新生成')
+    error.value = ''
+    notice.value = ''
+    try {
+      path.value = await abilityService.generatePath(graph.value)
+      flash('成长路径已重新生成')
+    } catch (cause) {
+      error.value = `成长路径生成失败：${messageOf(cause)}`
+    }
+  }
+
+  function messageOf(cause: unknown) {
+    return cause instanceof Error ? cause.message : '请稍后重试。'
   }
 
   function flash(message: string) {
     notice.value = message
-    window.setTimeout(() => (notice.value = ''), 2200)
+    globalThis.setTimeout(() => (notice.value = ''), 2200)
   }
 
   return {
@@ -107,6 +166,7 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     progress,
     loading,
     parsing,
+    saving,
     error,
     notice,
     load,

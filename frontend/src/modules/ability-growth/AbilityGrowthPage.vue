@@ -94,8 +94,8 @@ async function generateKnowledgeTrack(query: string) {
     if (existingIndex >= 0) knowledgeTracks.value.splice(existingIndex, 1, track)
     else knowledgeTracks.value.push(track)
     selectedKnowledgeTrackId.value = track.id
-  } catch {
-    knowledgeGenerationError.value = '暂时无法生成该方向，请稍后重试。'
+  } catch (cause) {
+    knowledgeGenerationError.value = cause instanceof Error ? cause.message : '暂时无法生成该方向，请稍后重试。'
   } finally {
     generatingKnowledge.value = false
   }
@@ -114,8 +114,7 @@ async function submitNode() {
     x: isNew ? 0 : store.selectedNode?.x ?? 0,
     y: isNew ? 0 : store.selectedNode?.y ?? 0,
   }
-  await store.saveNode(node)
-  showEditor.value = false
+  if (await store.saveNode(node)) showEditor.value = false
 }
 
 watch(
@@ -135,6 +134,8 @@ onMounted(async () => {
       if (!catalog.some((track) => track.id === selectedKnowledgeTrackId.value)) {
         selectedKnowledgeTrackId.value = catalog[0]?.id ?? ''
       }
+    }).catch((cause) => {
+      knowledgeGenerationError.value = cause instanceof Error ? cause.message : '知识目录加载失败，请稍后重试。'
     }),
   ])
 })
@@ -151,7 +152,7 @@ onMounted(async () => {
           <span class="page-icon"><Network :size="20" /></span>
           <div><strong>能力成长</strong><small>结构化成长工作台</small></div>
         </div>
-        <div class="sync-state"><span /> 已保存</div>
+        <div class="sync-state"><span /> {{ store.saving ? '保存中' : store.error ? '操作未完成' : store.graph?.source === 'api' ? '已同步后端' : '本地演示' }}</div>
         <button class="primary-button compact" type="button" @click="openNewNode"><Plus :size="17" /> 新增能力</button>
       </div>
     </header>
@@ -160,7 +161,7 @@ onMounted(async () => {
       <span class="spinner" />
       <p>正在构建能力图谱…</p>
     </div>
-    <div v-else-if="store.error" class="state-panel error-state page-loading">
+    <div v-else-if="store.error && !store.graph" class="state-panel error-state page-loading">
       <CircleAlert :size="28" />
       <p>{{ store.error }}</p>
       <button class="secondary-button" type="button" @click="store.load">重新加载</button>
@@ -206,7 +207,7 @@ onMounted(async () => {
           <div class="assumption-row"><Info :size="15" /> {{ store.parseResult.assumptions.join('；') }}</div>
           <div class="parse-actions">
             <button class="text-button" type="button" @click="store.parseResult = null">取消</button>
-            <button class="secondary-button" type="button" :disabled="!store.parseResult.suggestedNodes.length" @click="store.acceptSuggestions"><Check :size="16" /> 确认加入</button>
+            <button class="secondary-button" type="button" :disabled="store.saving || (!store.parseResult.suggestedNodes.length && !store.parseResult.suggestedRelations.length)" @click="store.acceptSuggestions"><Check :size="16" /> {{ store.saving ? '保存中' : '确认加入' }}</button>
           </div>
         </div>
       </section>
@@ -302,7 +303,7 @@ onMounted(async () => {
     </div>
 
     <Transition name="toast">
-      <div v-if="store.notice" class="toast-message"><CheckCircle2 :size="18" /> {{ store.notice }}</div>
+      <div v-if="(store.error && store.graph) || store.notice" class="toast-message" :role="store.error ? 'alert' : 'status'"><CircleAlert v-if="store.error" :size="18" /><CheckCircle2 v-else :size="18" /> {{ store.error || store.notice }}</div>
     </Transition>
 
     <Teleport to="body">
@@ -326,9 +327,10 @@ onMounted(async () => {
               <button v-for="option in statusOptions" :key="option.value" type="button" :class="{ active: form.status === option.value }" @click="form.status = option.value">{{ option.label }}</button>
             </div>
           </fieldset>
+          <p v-if="store.error" class="knowledge-error" role="alert">{{ store.error }}</p>
           <div class="dialog-actions">
             <button class="text-button" type="button" @click="showEditor = false">取消</button>
-            <button class="primary-button" type="submit"><Save :size="17" /> 保存节点</button>
+            <button class="primary-button" type="submit" :disabled="store.saving"><Save :size="17" /> {{ store.saving ? '保存中' : '保存节点' }}</button>
           </div>
         </form>
       </div>

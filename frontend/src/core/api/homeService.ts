@@ -1,4 +1,5 @@
 import type { ModuleManifest, UserProfile } from '../types'
+import { apiRequest, canUseOfflineDemo } from './apiClient'
 
 export interface HomeData {
   profile: UserProfile
@@ -42,13 +43,9 @@ const fallback: HomeData = {
 export const homeService = {
   async getHome(): Promise<HomeData> {
     try {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 900)
-      const response = await fetch('/api/v1/home', { signal: controller.signal })
-      window.clearTimeout(timeout)
-      if (!response.ok) throw new Error('Home API unavailable')
-      return await response.json()
-    } catch {
+      return await apiRequest<HomeData>('/home')
+    } catch (cause) {
+      if (!canUseOfflineDemo(cause)) throw cause
       return structuredClone(fallback)
     }
   },

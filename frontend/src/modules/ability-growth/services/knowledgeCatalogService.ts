@@ -1,4 +1,5 @@
 import type { SkillNode } from '../types'
+import { apiRequest, canUseOfflineDemo } from '../../../core/api/apiClient'
 
 export type KnowledgeTrackId = string
 export type StackStageId = string
@@ -163,36 +164,28 @@ const fallbackCatalog: KnowledgeTrack[] = [
 export const knowledgeCatalogService = {
   async getCatalog(): Promise<KnowledgeTrack[]> {
     try {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 900)
-      const response = await fetch('/api/v1/knowledge/catalog', { signal: controller.signal })
-      window.clearTimeout(timeout)
-      if (!response.ok) throw new Error('Knowledge catalog unavailable')
-      return await response.json()
-    } catch {
+      const catalog = await apiRequest<unknown>('/knowledge/catalog')
+      if (!Array.isArray(catalog) || !catalog.every(isKnowledgeTrack)) throw new Error('后端返回的知识目录格式无效。')
+      return catalog
+    } catch (cause) {
+      if (!canUseOfflineDemo(cause)) throw cause
       return structuredClone(fallbackCatalog)
     }
   },
 
   async generateTrack(query: string, personalSkills: SkillNode[]): Promise<KnowledgeTrack> {
     try {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 5000)
-      const response = await fetch('/api/v1/knowledge/generate', {
+      const result = await apiRequest<unknown>('/knowledge/generate', {
         method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
           currentSkills: personalSkills.map(({ name, level, status }) => ({ name, level, status })),
         }),
       })
-      window.clearTimeout(timeout)
-      if (!response.ok) throw new Error('Knowledge generation unavailable')
-      const result: unknown = await response.json()
-      if (!isKnowledgeTrack(result)) throw new Error('Invalid knowledge track response')
-      return { ...result, source: 'ai' }
-    } catch {
+      if (!isKnowledgeTrack(result)) throw new Error('后端返回的知识方向格式无效。')
+      return result
+    } catch (cause) {
+      if (!canUseOfflineDemo(cause)) throw cause
       return createMockTrack(query)
     }
   },
@@ -207,6 +200,7 @@ function isKnowledgeTrack(value: unknown): value is KnowledgeTrack {
       typeof track.shortTitle === 'string' &&
       typeof track.description === 'string' &&
       typeof track.outcome === 'string' &&
+      (track.source === 'catalog' || track.source === 'ai' || track.source === 'mock') &&
       Array.isArray(track.stages) &&
       track.stages.length > 0 &&
       track.stages.every(

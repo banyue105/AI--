@@ -89,7 +89,7 @@
 
 在 `backend/src/main/java/com/ican/assistant/modules/decisionsandbox/` 实现：
 
-- 场景、约束、资源、节点、推演结果和版本的 JPA Entity/Repository；
+- 场景、约束、资源、节点、推演结果和版本的 MyBatis 数据模型/Mapper；
 - Java DTO/record 请求/响应模型；
 - 至少实现以下接口：
 
@@ -107,7 +107,7 @@ POST /api/v1/decisions/{scenario_id}/compare
 - `simulate` 使用后端规则/计算 service 生成结果，再由 AI 生成解释；
 - 所有结果保存假设、来源和 `source: "ai" | "rule" | "mock"`；
 - 没有 AI 密钥时，`parse` 和解释接口使用确定性的 mock，规则计算仍然真实执行；
-- Controller 不直接写 SQL，通过 JPA Repository/Service 访问数据库。
+- Controller 不直接写 SQL，通过 MyBatis Mapper/Service 访问数据库。
 
 在 `frontend/src/modules/decision-sandbox/` 实现 Vue 页面、组件、Pinia 状态和 API service；页面不得直接访问数据库或 AI 服务。
 
@@ -239,7 +239,7 @@ AI 条件输入条
 
 - Vue 3 + TypeScript 决策沙盒页面和移动端布局；
 - 条件录入、关系模型、规则计算、分支图和方案比较；
-- Spring Boot API、JPA 数据模型、规则计算 service、Java DTO/record 和 mock seed 数据；
+- Spring Boot API、MyBatis 数据模型、规则计算 service、Java DTO/record 和 mock seed 数据；
 - 前端 API service 和后端接口测试或手动验收记录；
 - 至少覆盖条件变更、空数据、计算失败和数据库重启恢复；
 - 模块 README，包括前后端运行方式、数据结构、规则假设、环境变量和集成点；
