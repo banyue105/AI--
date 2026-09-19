@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   ArrowRight,
   BookOpen,
@@ -11,6 +11,7 @@ import {
   Plus,
   ServerCog,
   Sparkles,
+  Trash2,
 } from 'lucide-vue-next'
 import type { SkillNode } from '../types'
 import type {
@@ -32,11 +33,44 @@ const emit = defineEmits<{
   add: [item: KnowledgeStackItem, track: KnowledgeTrack, stage: KnowledgeStackStage]
   select: [id: string]
   generate: [query: string]
+  delete: [id: KnowledgeTrackId]
   'update:selectedTrackId': [id: KnowledgeTrackId]
 }>()
 
 const query = ref('')
 const selectedTrack = computed(() => props.tracks.find((track) => track.id === props.selectedTrackId) ?? props.tracks[0] ?? null)
+const trackSwitcher = ref<HTMLElement | null>(null)
+const trackSliderStyle = ref({ width: '0px', transform: 'translateX(0px)', opacity: '0' })
+const trackTransitionName = ref('track-slide-left')
+const previousTrackIndex = ref(Math.max(0, props.tracks.findIndex((track) => track.id === props.selectedTrackId)))
+
+async function updateTrackSlider() {
+  await nextTick()
+  const active = trackSwitcher.value?.querySelector<HTMLElement>('button[aria-selected="true"]')
+  if (!active) {
+    trackSliderStyle.value = { width: '0px', transform: 'translateX(0px)', opacity: '0' }
+    return
+  }
+  trackSliderStyle.value = {
+    width: `${active.offsetWidth}px`,
+    transform: `translateX(${active.offsetLeft}px)`,
+    opacity: '1',
+  }
+}
+
+watch(() => props.selectedTrackId, (id) => {
+  const nextIndex = props.tracks.findIndex((track) => track.id === id)
+  if (nextIndex >= 0) {
+    trackTransitionName.value = nextIndex >= previousTrackIndex.value ? 'track-slide-left' : 'track-slide-right'
+    previousTrackIndex.value = nextIndex
+  }
+})
+watch(() => [props.selectedTrackId, props.tracks.map((track) => track.id).join('|')], updateTrackSlider, { flush: 'post' })
+onMounted(() => {
+  updateTrackSlider()
+  window.addEventListener('resize', updateTrackSlider)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', updateTrackSlider))
 
 function findPersonalSkill(item: KnowledgeStackItem) {
   const names = [item.name, ...item.aliases].map((name) => name.toLowerCase())
@@ -94,8 +128,10 @@ function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
     </form>
     <p v-if="generationError" class="knowledge-error">{{ generationError }}</p>
 
-    <div class="track-switcher" role="tablist" aria-label="技术方向">
-      <button
+    <div ref="trackSwitcher" class="track-switcher" role="tablist" aria-label="技术方向">
+      <span class="track-slider" :style="trackSliderStyle" aria-hidden="true" />
+      <TransitionGroup name="track-tab" @after-enter="updateTrackSlider" @after-leave="updateTrackSlider">
+        <button
         v-for="track in tracks"
         :key="track.id"
         type="button"
@@ -109,10 +145,12 @@ function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
         <Network v-else-if="track.id === 'network'" :size="19" />
         <Sparkles v-else :size="19" />
         <span>{{ track.shortTitle }}</span>
-      </button>
+        </button>
+      </TransitionGroup>
     </div>
 
-    <div v-if="selectedTrack" class="track-content">
+    <Transition :name="trackTransitionName" mode="out-in">
+      <div v-if="selectedTrack" :key="selectedTrack.id" class="track-content">
       <header class="track-summary">
         <div>
           <span class="track-kicker">{{ selectedTrack.source === 'ai' ? 'AI 生成' : selectedTrack.source === 'mock' ? '本地候选' : '预置方向' }}</span>
@@ -124,6 +162,9 @@ function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
           <strong>{{ selectedTrack.outcome }}</strong>
           <small>当前已掌握 {{ trackCoverage(selectedTrack).matched }}/{{ trackCoverage(selectedTrack).total }} 项</small>
         </div>
+        <button class="icon-button track-delete-button" type="button" aria-label="删除当前知识方向" title="删除知识方向" @click="emit('delete', selectedTrack.id)">
+          <Trash2 :size="17" />
+        </button>
       </header>
 
       <div class="stack-stages">
@@ -157,7 +198,8 @@ function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
           <ArrowRight v-if="stageIndex < selectedTrack.stages.length - 1" class="stage-arrow" :size="20" />
         </article>
       </div>
-      <p class="catalog-hint"><Plus :size="14" /> 点击“待学习”技术可带入新增能力表单，已有技术会定位到个人图谱。</p>
-    </div>
+        <p class="catalog-hint"><Plus :size="14" /> 点击“待学习”技术可带入新增能力表单，已有技术会定位到个人图谱。</p>
+      </div>
+    </Transition>
   </section>
 </template>

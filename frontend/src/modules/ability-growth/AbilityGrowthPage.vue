@@ -6,6 +6,7 @@ import {
   Bot,
   Check,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   ClipboardCheck,
   FileCheck2,
@@ -27,7 +28,7 @@ import AbilityGraph from './components/AbilityGraph.vue'
 import KnowledgeCatalog from './components/KnowledgeCatalog.vue'
 import { useAbilityStore } from './stores/abilityStore'
 import { skillAssessmentService, type SkillQuestion } from './services/skillAssessmentService'
-import type { SkillLevel, SkillNode, SkillStatus } from './types'
+import type { GrowthPathStep, SkillLevel, SkillNode, SkillStatus } from './types'
 import { buildCatalogRelations } from './utils/catalogRelations'
 import {
   knowledgeCatalogService,
@@ -44,10 +45,19 @@ const knowledgeTracks = ref<KnowledgeTrack[]>([])
 const selectedKnowledgeTrackId = ref<KnowledgeTrackId>('network')
 const generatingKnowledge = ref(false)
 const knowledgeGenerationError = ref('')
-const catalogSelection = ref<{
+type CatalogContext = {
   item: KnowledgeStackItem
   stage: KnowledgeStackStage
   track: KnowledgeTrack
+}
+const catalogSelection = ref<CatalogContext | null>(null)
+const catalogPreview = ref<CatalogContext | null>(null)
+const expandedPathSkillIds = ref<string[]>([])
+type RelationNeighbor = { id: string | null; name: string; status: SkillStatus; meta?: string }
+const graphRelationContext = ref<{
+  nodeId: string
+  previous: RelationNeighbor[]
+  next: RelationNeighbor[]
 } | null>(null)
 const levelLabels = ['不了解', '了解', '能实践', '熟练', '可指导']
 const statusOptions: Array<{ value: SkillStatus; label: string }> = [
@@ -63,6 +73,22 @@ const deadlineDays = computed(() => {
   return Math.max(0, Math.ceil((new Date(store.graph.goal.deadline).getTime() - Date.now()) / 86400000))
 })
 const selectedEvidence = computed(() => store.evidenceForSelected)
+const selectedNeighbors = computed<{ previous: RelationNeighbor[]; next: RelationNeighbor[] }>(() => {
+  const graph = store.graph
+  const selectedId = store.selectedId
+  if (!graph || !selectedId) return { previous: [] as RelationNeighbor[], next: [] as RelationNeighbor[] }
+  if (graphRelationContext.value?.nodeId === selectedId) return graphRelationContext.value
+  const previousIds = new Set<string>()
+  const nextIds = new Set<string>()
+  graph.relations.forEach((relation) => {
+    if (relation.to === selectedId) previousIds.add(relation.from)
+    if (relation.from === selectedId) nextIds.add(relation.to)
+  })
+  return {
+    previous: graph.nodes.filter((node) => previousIds.has(node.id)).map(({ id, name, status }) => ({ id, name, status, meta: undefined })),
+    next: graph.nodes.filter((node) => nextIds.has(node.id)).map(({ id, name, status }) => ({ id, name, status, meta: undefined })),
+  }
+})
 const showPracticeForm = ref(false)
 const practiceSaving = ref(false)
 const practiceForm = reactive({ title: '', note: '' })
@@ -112,6 +138,7 @@ async function deleteSelectedNode() {
   await store.deleteNode(node.id)
 }
 function openCatalogSkill(item: KnowledgeStackItem, track: KnowledgeTrack, stage: KnowledgeStackStage) {
+  catalogPreview.value = null
   catalogSelection.value = { item, track, stage }
   Object.assign(form, {
     id: '',
@@ -121,6 +148,24 @@ function openCatalogSkill(item: KnowledgeStackItem, track: KnowledgeTrack, stage
     status: 'developing',
   })
   showEditor.value = true
+}
+
+function openGraphCatalogPreview(payload: { trackId: string; stageId: string; itemId: string }) {
+  const track = knowledgeTracks.value.find((item) => item.id === payload.trackId)
+  const stage = track?.stages.find((item) => item.id === payload.stageId)
+  const item = stage?.items.find((entry) => entry.id === payload.itemId)
+  if (!track || !stage || !item) return
+  store.selectedId = null
+  catalogPreview.value = { track, stage, item }
+}
+
+function selectGraphSkill(id: string) {
+  catalogPreview.value = null
+  store.selectedId = id
+}
+
+function updateGraphRelations(payload: { nodeId: string; previous: RelationNeighbor[]; next: RelationNeighbor[] }) {
+  graphRelationContext.value = payload
 }
 
 function selectCatalogSkill(id: string) {
@@ -135,13 +180,30 @@ async function generateKnowledgeTrack(query: string) {
   try {
     const track = await knowledgeCatalogService.generateTrack(query, store.graph.nodes)
     const existingIndex = knowledgeTracks.value.findIndex((item) => item.title === track.title)
-    if (existingIndex >= 0) knowledgeTracks.value.splice(existingIndex, 1, track)
-    else knowledgeTracks.value.push(track)
-    selectedKnowledgeTrackId.value = track.id
+    if (existingIndex >= 0) {
+      const stableTrack = { ...track, id: knowledgeTracks.value[existingIndex].id }
+      knowledgeTracks.value.splice(existingIndex, 1, stableTrack)
+      selectedKnowledgeTrackId.value = stableTrack.id
+    } else {
+      knowledgeTracks.value.push(track)
+      selectedKnowledgeTrackId.value = track.id
+    }
   } catch {
     knowledgeGenerationError.value = '暂时无法生成该方向，请稍后重试。'
   } finally {
     generatingKnowledge.value = false
+  }
+}
+
+function deleteKnowledgeTrack(id: KnowledgeTrackId) {
+  const index = knowledgeTracks.value.findIndex((track) => track.id === id)
+  if (index < 0) return
+  const track = knowledgeTracks.value[index]
+  if (!window.confirm('确定删除知识方向“' + track.title + '”吗？个人技能节点不会受到影响。')) return
+  knowledgeTracks.value.splice(index, 1)
+  if (catalogPreview.value?.track.id === id) catalogPreview.value = null
+  if (selectedKnowledgeTrackId.value === id) {
+    selectedKnowledgeTrackId.value = knowledgeTracks.value[Math.min(index, knowledgeTracks.value.length - 1)]?.id ?? ''
   }
 }
 
@@ -176,6 +238,24 @@ async function submitNode() {
 
 function closeInspector() {
   store.selectedId = null
+  catalogPreview.value = null
+  graphRelationContext.value = null
+}
+
+function nodeForPath(id: string) {
+  return store.graph?.nodes.find((node) => node.id === id) ?? null
+}
+
+function togglePathDetail(skillId: string) {
+  expandedPathSkillIds.value = expandedPathSkillIds.value.includes(skillId)
+    ? expandedPathSkillIds.value.filter((id) => id !== skillId)
+    : [...expandedPathSkillIds.value, skillId]
+}
+
+function pathAction(step: GrowthPathStep) {
+  if (step.status === 'done') return '用一次真实任务复验，并补充最新实践记录。'
+  if (step.status === 'blocked') return `先完成前置能力：${step.prerequisiteIds.map(nodeName).join('、') || '基础知识准备'}。`
+  return '完成一次最小实践，将结果和遇到的问题记录为能力证据。'
 }
 
 function scrollToSkillDetail() {
@@ -309,7 +389,8 @@ onMounted(async () => {
           </button>
         </form>
 
-        <div v-if="store.parseResult" class="parse-result">
+        <Transition name="parse-result">
+          <div v-if="store.parseResult" class="parse-result">
           <div class="parse-summary"><Bot :size="19" /><strong>{{ store.parseResult.summary }}</strong></div>
           <div v-if="store.parseResult.suggestedNodes.length" class="suggestion-list">
             <span v-for="node in store.parseResult.suggestedNodes" :key="node.id"><Check :size="14" /> {{ node.name }} · {{ levelLabels[node.level] }}</span>
@@ -319,7 +400,8 @@ onMounted(async () => {
             <button class="text-button" type="button" @click="store.parseResult = null">取消</button>
             <button class="secondary-button" type="button" :disabled="!store.parseResult.suggestedNodes.length" @click="store.acceptSuggestions"><Check :size="16" /> 确认加入</button>
           </div>
-        </div>
+          </div>
+        </Transition>
       </section>
 
       <div class="workspace-grid">
@@ -340,8 +422,11 @@ onMounted(async () => {
             :relations="store.graph.relations"
             :tracks="knowledgeTracks"
             :selected-id="store.selectedId"
-            @select="store.selectedId = $event"
+            @select="selectGraphSkill"
+            @preview-catalog="openGraphCatalogPreview"
+            @relation-context="updateGraphRelations"
             @delete-many="store.deleteNodes"
+            @clear-selection="closeInspector"
 
           >
             <template #inspector="{ startDrag, closePopover }">
@@ -350,7 +435,10 @@ onMounted(async () => {
                   <GripVertical :size="15" />
                   <span>技能摘要</span>
                 </div>
-                <button class="summary-close" type="button" aria-label="关闭技能摘要" title="关闭" @click="closePopover"><X :size="15" /></button>
+                <div class="summary-actions">
+                  <button class="summary-action danger" type="button" aria-label="删除当前技能" title="删除技能" @click="deleteSelectedNode"><Trash2 :size="14" /></button>
+                  <button class="summary-action" type="button" aria-label="关闭技能摘要" title="关闭" @click="closePopover"><X :size="15" /></button>
+                </div>
                 <span class="node-status" :class="store.selectedNode.status">{{ statusOptions.find((item) => item.value === store.selectedNode?.status)?.label }}</span>
                 <h3>{{ store.selectedNode.name }}</h3>
                 <p>{{ store.selectedNode.description || '暂未填写能力说明' }}</p>
@@ -362,10 +450,30 @@ onMounted(async () => {
                   查看完整信息 <ArrowRight :size="15" />
                 </button>
               </aside>
+              <aside v-else-if="catalogPreview" class="skill-node-summary catalog-skill-summary" aria-label="待学习技能摘要" @click.stop>
+                <div class="summary-drag-handle" title="拖动信息框" @pointerdown="startDrag">
+                  <GripVertical :size="15" />
+                  <span>待学习技能</span>
+                </div>
+                <div class="summary-actions">
+                  <button class="summary-action" type="button" aria-label="关闭技能摘要" title="关闭" @click="closePopover"><X :size="15" /></button>
+                </div>
+                <span class="node-status gap">待学习</span>
+                <h3>{{ catalogPreview.item.name }}</h3>
+                <p>{{ catalogPreview.item.description }}</p>
+                <div class="summary-level catalog-context">
+                  <span>{{ catalogPreview.track.shortTitle }}</span>
+                  <strong>{{ catalogPreview.stage.title }}</strong>
+                </div>
+                <button class="primary-button summary-detail-button" type="button" @click="openCatalogSkill(catalogPreview.item, catalogPreview.track, catalogPreview.stage); closePopover()">
+                  去学习 <ArrowRight :size="15" />
+                </button>
+              </aside>
             </template>
           </AbilityGraph>
 
-          <section v-if="store.selectedNode" class="skill-detail-panel" aria-label="当前技能完整信息">
+          <Transition name="skill-detail" mode="out-in">
+            <section v-if="store.selectedNode" :key="store.selectedNode.id" class="skill-detail-panel" aria-label="当前技能完整信息">
             <header class="skill-detail-header">
               <div>
                 <div class="skill-detail-kicker">
@@ -403,9 +511,10 @@ onMounted(async () => {
                     <button v-if="!showAssessment" class="text-button compact" type="button" @click="startAssessment">开始小测</button>
                     <button v-else-if="assessmentSubmitted" class="text-button compact" type="button" @click="startAssessment">再测一次</button>
                   </div>
-                  <p v-if="!showAssessment" class="inspector-section-note">通过 3 道基础选择题辅助校准当前水平。</p>
-                  <div v-else-if="assessmentLoading" class="inspector-inline-state"><span class="spinner" /> 正在加载题目…</div>
-                  <div v-else class="assessment-content">
+                  <Transition name="content-swap" mode="out-in">
+                    <p v-if="!showAssessment" key="intro" class="inspector-section-note">通过 3 道基础选择题辅助校准当前水平。</p>
+                    <div v-else-if="assessmentLoading" key="loading" class="inspector-inline-state"><span class="spinner" /> 正在加载题目…</div>
+                    <div v-else key="questions" class="assessment-content">
                     <article v-for="(question, questionIndex) in assessmentQuestions" :key="question.id" class="assessment-question">
                       <strong><span>{{ questionIndex + 1 }}</span>{{ question.prompt }}</strong>
                       <div class="assessment-options">
@@ -431,8 +540,9 @@ onMounted(async () => {
                       <div><strong>{{ assessmentScore }}/{{ assessmentQuestions.length }} 题正确</strong><small>{{ assessmentSuggestion }}</small></div>
                     </div>
                     <button v-else class="secondary-button assessment-submit" type="button" :disabled="!assessmentComplete" @click="submitAssessment">提交测评</button>
-                    <p class="assessment-disclaimer">测评结果仅作辅助参考，不会自动修改技能等级。</p>
-                  </div>
+                      <p class="assessment-disclaimer">测评结果仅作辅助参考，不会自动修改技能等级。</p>
+                    </div>
+                  </Transition>
                 </section>
 
                 <section class="evidence-block">
@@ -444,13 +554,15 @@ onMounted(async () => {
                       {{ showPracticeForm ? '取消' : '添加记录' }}
                     </button>
                   </div>
-                  <form v-if="showPracticeForm" class="practice-form" @submit.prevent="savePracticeRecord">
+                  <Transition name="practice-form">
+                    <form v-if="showPracticeForm" class="practice-form" @submit.prevent="savePracticeRecord">
                     <label>实践名称<input v-model="practiceForm.title" required maxlength="40" placeholder="例如：完成接口鉴权" /></label>
                     <label>过程与结果<textarea v-model="practiceForm.note" rows="3" maxlength="180" placeholder="记录完成内容、遇到的问题或产出" /></label>
                     <button class="primary-button compact" type="submit" :disabled="practiceSaving || !practiceForm.title.trim()">
                       {{ practiceSaving ? '保存中' : '保存记录' }}
-                    </button>
-                  </form>
+                      </button>
+                    </form>
+                  </Transition>
                   <div v-if="selectedEvidence.length" class="evidence-list">
                     <div v-for="item in selectedEvidence" :key="item.id">
                       <CheckCircle2 :size="17" />
@@ -461,7 +573,49 @@ onMounted(async () => {
                 </section>
               </div>
             </div>
-          </section>
+            <section class="skill-relations-panel" aria-label="技能树关联">
+              <div class="inspector-section-title">
+                <h3><Network :size="17" /> 技能树关联</h3>
+                <span>{{ selectedNeighbors.previous.length + selectedNeighbors.next.length }} 个相邻节点</span>
+              </div>
+              <div class="relation-detail-map">
+                <div class="relation-detail-column previous">
+                  <small>前置能力</small>
+                  <button
+                    v-for="node in selectedNeighbors.previous"
+                    :key="`${node.id ?? node.name}-previous`"
+                    type="button"
+                    :disabled="!node.id"
+                    @click="node.id && selectGraphSkill(node.id)"
+                  >
+                    <span class="node-status" :class="node.status">{{ node.meta || '前置' }}</span>
+                    <strong>{{ node.name }}</strong>
+                  </button>
+                  <span v-if="!selectedNeighbors.previous.length" class="relation-empty">当前视图中没有前置节点</span>
+                </div>
+                <div class="relation-current-node">
+                  <i />
+                  <strong>{{ store.selectedNode.name }}</strong>
+                  <small>当前技能</small>
+                </div>
+                <div class="relation-detail-column next">
+                  <small>后续能力</small>
+                  <button
+                    v-for="node in selectedNeighbors.next"
+                    :key="`${node.id ?? node.name}-next`"
+                    type="button"
+                    :disabled="!node.id"
+                    @click="node.id && selectGraphSkill(node.id)"
+                  >
+                    <span class="node-status" :class="node.status">{{ node.meta || '后续' }}</span>
+                    <strong>{{ node.name }}</strong>
+                  </button>
+                  <span v-if="!selectedNeighbors.next.length" class="relation-empty">当前视图中没有后续节点</span>
+                </div>
+              </div>
+            </section>
+            </section>
+          </Transition>
         </section>
       </div>
 
@@ -475,6 +629,7 @@ onMounted(async () => {
         @generate="generateKnowledgeTrack"
         @add="openCatalogSkill"
         @select="selectCatalogSkill"
+        @delete="deleteKnowledgeTrack"
       />
 
       <section class="path-section">
@@ -486,18 +641,29 @@ onMounted(async () => {
           <button class="secondary-button compact" type="button" @click="store.regeneratePath"><RefreshCw :size="16" /> 重新生成</button>
         </div>
         <div class="path-list">
-          <article v-for="(step, index) in store.path" :key="step.skillId" class="path-step" :class="step.status">
-            <div class="path-marker">
-              <Check v-if="step.status === 'done'" :size="16" />
-              <span v-else>{{ index + 1 }}</span>
+          <article v-for="(step, index) in store.path" :key="step.skillId" class="path-step" :class="[step.status, { expanded: expandedPathSkillIds.includes(step.skillId) }]">
+            <button class="path-step-main" type="button" :aria-expanded="expandedPathSkillIds.includes(step.skillId)" @click="togglePathDetail(step.skillId)">
+              <span class="path-marker">
+                <Check v-if="step.status === 'done'" :size="16" />
+                <span v-else>{{ index + 1 }}</span>
+              </span>
+              <span class="path-copy">
+                <span><strong>{{ nodeName(step.skillId) }}</strong><span>{{ step.status === 'done' ? '已具备' : step.status === 'blocked' ? '等待前置' : '建议下一步' }}</span></span>
+                <p>{{ step.reason }}</p>
+                <small v-if="step.prerequisiteIds.length">依据：需先具备 {{ step.prerequisiteIds.map(nodeName).join('、') }}</small>
+                <small v-else>依据：能力图谱中的目标依赖关系</small>
+              </span>
+              <ChevronDown class="path-toggle-icon" :size="18" />
+            </button>
+            <div class="path-detail-shell" :class="{ expanded: expandedPathSkillIds.includes(step.skillId) }">
+              <div>
+                <div class="path-step-detail">
+                  <div><span>能力说明</span><p>{{ nodeForPath(step.skillId)?.description || '该能力尚未补充详细说明。' }}</p></div>
+                  <div><span>当前基础</span><strong>{{ levelLabels[nodeForPath(step.skillId)?.level ?? 0] }} · {{ statusOptions.find((item) => item.value === nodeForPath(step.skillId)?.status)?.label || '待确认' }}</strong></div>
+                  <div><span>下一步行动</span><p>{{ pathAction(step) }}</p></div>
+                </div>
+              </div>
             </div>
-            <div class="path-copy">
-              <div><strong>{{ nodeName(step.skillId) }}</strong><span>{{ step.status === 'done' ? '已具备' : step.status === 'blocked' ? '等待前置' : '建议下一步' }}</span></div>
-              <p>{{ step.reason }}</p>
-              <small v-if="step.prerequisiteIds.length">依据：需先具备 {{ step.prerequisiteIds.map(nodeName).join('、') }}</small>
-              <small v-else>依据：能力图谱中的目标依赖关系</small>
-            </div>
-            <ArrowRight :size="18" />
           </article>
         </div>
         <div class="path-assumption"><Info :size="16" /><span><strong>生成假设</strong> 当前路径仅依据你确认的能力等级与前置关系，不代表固定学时或结果保证。</span></div>
@@ -509,7 +675,8 @@ onMounted(async () => {
     </Transition>
 
     <Teleport to="body">
-      <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
+      <Transition name="editor-modal">
+        <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
         <form class="editor-dialog" @submit.prevent="submitNode">
           <div class="dialog-header">
             <div><p class="eyebrow">结构化能力</p><h2>{{ form.id ? '编辑能力节点' : '新增能力节点' }}</h2></div>
@@ -519,13 +686,13 @@ onMounted(async () => {
           <label>能力说明<textarea v-model="form.description" rows="3" maxlength="120" placeholder="说明这项能力能解决什么问题" /></label>
           <fieldset>
             <legend>掌握程度</legend>
-            <div class="segmented-control five">
+            <div class="segmented-control five" :style="{ '--segment-shift': `calc(${form.level * 100}% + ${form.level * 2}px)` }">
               <button v-for="(label, index) in levelLabels" :key="label" type="button" :class="{ active: form.level === index }" @click="form.level = index as SkillLevel">{{ label }}</button>
             </div>
           </fieldset>
           <fieldset>
             <legend>节点状态</legend>
-            <div class="segmented-control">
+            <div class="segmented-control" :style="{ '--segment-shift': 'calc(' + (statusOptions.findIndex((item) => item.value === form.status) * 100) + '% + ' + (statusOptions.findIndex((item) => item.value === form.status) * 2) + 'px)' }">
               <button v-for="option in statusOptions" :key="option.value" type="button" :class="{ active: form.status === option.value }" @click="form.status = option.value">{{ option.label }}</button>
             </div>
           </fieldset>
@@ -534,7 +701,8 @@ onMounted(async () => {
             <button class="primary-button" type="submit"><Save :size="17" /> 保存节点</button>
           </div>
         </form>
-      </div>
+        </div>
+      </Transition>
     </Teleport>
   </main>
 </template>

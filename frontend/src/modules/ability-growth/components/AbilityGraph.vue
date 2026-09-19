@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ArrowDown, ArrowRight, Check, ListTree, Maximize2, Minus, Plus, Trash2, X } from 'lucide-vue-next'
 import type { KnowledgeTrack } from '../services/knowledgeCatalogService'
 import type { SkillNode, SkillRelation } from '../types'
@@ -12,10 +12,25 @@ const props = defineProps<{
   selectedId: string | null
 }>()
 
-const emit = defineEmits<{ select: [id: string]; deleteMany: [ids: string[]] }>()
+const emit = defineEmits<{
+  select: [id: string]
+  deleteMany: [ids: string[]]
+  clearSelection: []
+  previewCatalog: [payload: { trackId: string; stageId: string; itemId: string }]
+  relationContext: [payload: {
+    nodeId: string
+    previous: Array<{ id: string | null; name: string; status: SkillNode['status']; meta?: string }>
+    next: Array<{ id: string | null; name: string; status: SkillNode['status']; meta?: string }>
+  }]
+}>()
 type TreeMode = 'personal' | 'direction' | 'path'
 type Orientation = 'lr' | 'tb'
-type DisplayNode = LayoutSkillNode & { meta?: string; selectId?: string; catalogNode?: boolean }
+type DisplayNode = LayoutSkillNode & {
+  meta?: string
+  selectId?: string
+  catalogNode?: boolean
+  catalogRef?: { trackId: string; stageId: string; itemId: string }
+}
 type RenderLane = { id: number; label: string; x: number; y: number; width: number; height: number }
 type RenderColumn = { depth: number; label: string; x: number; y: number }
 type DisplayLayout = Omit<AbilityGraphLayout, 'nodes'> & { nodes: DisplayNode[] }
@@ -39,15 +54,25 @@ const popoverPosition = ref({ x: 0, y: 0 })
 const popoverElement = ref<HTMLElement | null>(null)
 const draggingPopover = ref(false)
 const popoverVisible = ref(false)
+const previewNodeId = ref<string | null>(null)
 let dragOrigin: { pointerX: number; pointerY: number; x: number; y: number } | null = null
 const basePathLayout = computed(() => layoutAbilityGraph(props.nodes, props.relations))
 const directionOptions = computed(() => props.tracks.map((track) => ({ id: track.id, label: track.shortTitle })))
+const treeModeSliderStyle = computed(() => {
+  const index = treeMode.value === 'personal' ? 0 : treeMode.value === 'direction' ? 1 : 2
+  return { transform: `translateX(calc(${index * 100}% + ${index * 2}px))` }
+})
+const orientationSliderStyle = computed(() => ({
+  transform: `translateX(calc(${orientation.value === 'lr' ? 0 : 100}% + ${orientation.value === 'lr' ? 0 : 2}px))`,
+}))
 
 watch(directionOptions, (options) => {
   const validIds = new Set(options.map((option) => option.id))
   const retained = selectedTrackIds.value.filter((id) => validIds.has(id))
   selectedTrackIds.value = retained.length ? retained : options.slice(0, 1).map((option) => option.id)
 }, { immediate: true })
+
+watch(treeMode, () => clearSelection())
 
 const pathNodeIds = computed(() => {
   const target = props.nodes.find((node) => node.status === 'target')
@@ -137,6 +162,7 @@ function knowledgeDirectionLayout(): DisplayLayout {
           meta: stage.title,
           selectId: match?.id,
           catalogNode: true,
+          catalogRef: { trackId: track.id, stageId: stage.id, itemId: item.id },
         })
         if (stageIndex > 0) {
           const previous = track.stages[stageIndex - 1]
@@ -277,6 +303,32 @@ function personalNodeId(node: DisplayNode) {
   return props.nodes.some((item) => item.id === node.id) ? node.id : null
 }
 
+function emitRelationContext(node: DisplayNode) {
+  const toNeighbor = (id: string) => {
+    const neighbor = renderLayout.value.nodes.find((item) => item.id === id)
+    if (!neighbor) return null
+    return {
+      id: personalNodeId(neighbor),
+      name: neighbor.name,
+      status: neighbor.status,
+      meta: neighbor.meta,
+    }
+  }
+  const previous = renderLayout.value.relations
+    .filter((relation) => relation.to === node.id)
+    .map((relation) => toNeighbor(relation.from))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  const next = renderLayout.value.relations
+    .filter((relation) => relation.from === node.id)
+    .map((relation) => toNeighbor(relation.to))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  emit('relationContext', {
+    nodeId: personalNodeId(node) ?? node.id,
+    previous,
+    next,
+  })
+}
+
 function placePopover(node: DisplayNode) {
   const nodeWidth = orientation.value === 'tb' ? 120 : 144
   const popupWidth = popoverElement.value?.offsetWidth ?? 252
@@ -292,6 +344,14 @@ function placePopover(node: DisplayNode) {
 
 function selectNode(node: DisplayNode) {
   const id = personalNodeId(node)
+  if (!id && node.catalogRef) {
+    previewNodeId.value = node.id
+    placePopover(node)
+    popoverVisible.value = true
+    emit('previewCatalog', node.catalogRef)
+    void nextTick(() => placePopover(node))
+    return
+  }
   if (!id) return
   if (batchMode.value) {
     batchSelectedIds.value = batchSelectedIds.value.includes(id)
@@ -299,9 +359,12 @@ function selectNode(node: DisplayNode) {
       : [...batchSelectedIds.value, id]
     return
   }
+  previewNodeId.value = null
   placePopover(node)
   popoverVisible.value = true
+  emitRelationContext(node)
   emit('select', id)
+  void nextTick(() => placePopover(node))
 }
 
 function movePopover(event: PointerEvent) {
@@ -327,6 +390,12 @@ function stopPopoverDrag() {
 function hidePopover() {
   stopPopoverDrag()
   popoverVisible.value = false
+}
+
+function clearSelection() {
+  hidePopover()
+  previewNodeId.value = null
+  emit('clearSelection')
 }
 
 function startPopoverDrag(event: PointerEvent) {
@@ -374,17 +443,20 @@ watch(() => props.nodes.map((node) => node.id), (ids) => {
 
 watch([() => props.selectedId, renderLayout], ([selectedId], [previousSelectedId]) => {
   if (!selectedId) {
-    popoverVisible.value = false
+    if (!previewNodeId.value) popoverVisible.value = false
     return
   }
   const node = renderLayout.value.nodes.find((item) => personalNodeId(item) === selectedId)
   if (node) {
     placePopover(node)
+    emitRelationContext(node)
     if (selectedId !== previousSelectedId) popoverVisible.value = true
   }
 }, { flush: 'post' })
 
-onBeforeUnmount(stopPopoverDrag)
+onBeforeUnmount(() => {
+  stopPopoverDrag()
+})
 
 function setScale(value: number) {
   scale.value = Math.min(1.15, Math.max(0.7, value))
@@ -395,12 +467,14 @@ function setScale(value: number) {
   <section class="graph-panel" aria-label="能力关系图谱">
     <div class="graph-toolbar">
       <div class="tree-mode-switch" aria-label="技能树类型">
+        <span class="segmented-slider" :style="treeModeSliderStyle" aria-hidden="true" />
         <button type="button" :class="{ active: treeMode === 'personal' }" @click="treeMode = 'personal'">个人技能树</button>
         <button type="button" :class="{ active: treeMode === 'direction' }" @click="treeMode = 'direction'">方向技能树</button>
         <button type="button" :class="{ active: treeMode === 'path' }" @click="treeMode = 'path'">路径技能树</button>
       </div>
       <div class="graph-actions">
         <div class="orientation-switch" aria-label="布局方向">
+          <span class="segmented-slider" :style="orientationSliderStyle" aria-hidden="true" />
           <button type="button" :class="{ active: orientation === 'lr' }" title="从左到右" aria-label="从左到右布局" @click="orientation = 'lr'"><ArrowRight :size="16" /></button>
           <button type="button" :class="{ active: orientation === 'tb' }" title="从上到下" aria-label="从上到下布局" @click="orientation = 'tb'"><ArrowDown :size="16" /></button>
         </div>
@@ -418,20 +492,24 @@ function setScale(value: number) {
     </div>
 
     <div class="graph-subbar">
-      <div v-if="batchMode" class="batch-delete-bar">
+      <Transition name="subbar-content" mode="out-in">
+      <div v-if="batchMode" key="batch" class="batch-delete-bar">
         <span>已选择 <strong>{{ batchSelectedIds.length }}</strong> 项</span>
         <button v-if="listMode" type="button" class="text-button compact" :disabled="!selectableVisibleIds.length" @click="toggleVisibleSelection">{{ allVisibleSelected ? '清空当前列表' : '选择当前列表' }}</button>
         <button type="button" class="text-button compact" @click="toggleBatchMode"><X :size="15" />取消</button>
         <button type="button" class="danger-action compact" :disabled="!batchSelectedIds.length" @click="deleteSelectedNodes"><Trash2 :size="15" />删除所选</button>
       </div>
-      <div v-else-if="treeMode === 'direction'" class="direction-picker" aria-label="选择展示方向">
+      <div v-else-if="treeMode === 'direction'" key="direction" class="direction-picker" aria-label="选择展示方向">
         <span>展示方向</span>
-        <label v-for="option in directionOptions" :key="option.id" :class="{ active: selectedTrackIds.includes(option.id) }">
-          <input type="checkbox" :checked="selectedTrackIds.includes(option.id)" @change="toggleTrack(option.id)" />
-          {{ option.label }}
-        </label>
+        <TransitionGroup name="direction-option">
+          <label v-for="option in directionOptions" :key="option.id" :class="{ active: selectedTrackIds.includes(option.id) }">
+            <input type="checkbox" :checked="selectedTrackIds.includes(option.id)" @change="toggleTrack(option.id)" />
+            {{ option.label }}
+          </label>
+        </TransitionGroup>
       </div>
-      <div v-else class="view-description">{{ treeMode === 'personal' ? '全部技能积累 · 仅显示主要前置关系' : '目标能力的前置学习链' }}</div>
+      <div v-else :key="treeMode" class="view-description">{{ treeMode === 'personal' ? '全部技能积累 · 仅显示主要前置关系' : '目标能力的前置学习链' }}</div>
+      </Transition>
       <div class="legend" aria-label="节点状态图例">
         <span><i class="dot mastered" />已掌握</span>
         <span><i class="dot developing" />进行中</span>
@@ -440,14 +518,14 @@ function setScale(value: number) {
       </div>
     </div>
 
-    <div v-if="listMode" class="skill-list" :class="{ 'batch-mode': batchMode }" @click.self="hidePopover">
+    <div v-if="listMode" class="skill-list" :class="{ 'batch-mode': batchMode }" @click.self="clearSelection">
       <button
         v-for="node in renderLayout.nodes"
         :key="node.id"
         type="button"
         class="skill-list-item"
         :class="{
-          selected: !batchMode && selectedId === (node.selectId ?? node.id),
+          selected: !batchMode && popoverVisible && selectedId === (node.selectId ?? node.id),
           'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''),
           'batch-disabled': batchMode && !personalNodeId(node),
         }"
@@ -462,30 +540,32 @@ function setScale(value: number) {
       </button>
     </div>
 
-    <div v-else class="graph-viewport" @click.self="hidePopover">
+    <div v-else class="graph-viewport" @click.self="clearSelection">
       <div v-if="!renderLayout.nodes.length" class="graph-empty">至少选择一个方向</div>
-      <div v-else class="graph-canvas" @click.self="hidePopover" :class="[`orientation-${orientation}`, `mode-${treeMode}`]" :style="{ transform: `scale(${scale})`, width: `${renderLayout.width}px`, height: `${renderLayout.height}px` }">
+      <div v-else class="graph-canvas" @click.self="clearSelection" :class="[`orientation-${orientation}`, `mode-${treeMode}`]" :style="{ transform: `scale(${scale})`, width: `${renderLayout.width}px`, height: `${renderLayout.height}px` }">
         <div class="graph-columns" aria-hidden="true"><span v-for="column in renderLayout.columns" :key="column.depth" :style="{ left: `${column.x}px`, top: `${column.y}px` }">{{ column.label }}</span></div>
-        <div v-for="lane in renderLayout.lanes" :key="lane.id" class="graph-lane" :style="{ left: `${lane.x}px`, top: `${lane.y}px`, width: `${lane.width}px`, height: `${lane.height}px` }" aria-hidden="true"><span>{{ lane.label }}</span></div>
+        <div v-for="(lane, laneIndex) in renderLayout.lanes" :key="lane.id" class="graph-lane" :style="{ left: `${lane.x}px`, top: `${lane.y}px`, width: `${lane.width}px`, height: `${lane.height}px`, animationDelay: `${laneIndex * 55}ms` }" aria-hidden="true"><span>{{ lane.label }}</span></div>
         <svg class="edges" :width="renderLayout.width" :height="renderLayout.height" :viewBox="`0 0 ${renderLayout.width} ${renderLayout.height}`" aria-hidden="true">
           <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
-          <path v-for="line in lineData" :key="`${line.from}-${line.to}`" :d="line.path" :class="[line.type, { 'cross-direction': line.crossDirection }]" marker-end="url(#arrow)" />
+          <path v-for="(line, lineIndex) in lineData" :key="`${line.from}-${line.to}`" :d="line.path" :class="[line.type, { 'cross-direction': line.crossDirection }]" :style="{ animationDelay: `${lineIndex * 24}ms` }" marker-end="url(#arrow)" />
         </svg>
-        <button v-for="node in renderLayout.nodes" :key="node.id" type="button" class="skill-node" :class="[node.status, { selected: !batchMode && selectedId === (node.selectId ?? node.id), 'batch-selectable': batchMode && personalNodeId(node), 'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''), 'catalog-node': node.catalogNode, 'read-only': node.catalogNode && !node.selectId }]" :style="{ left: `${node.x}px`, top: `${node.y}px` }" @click.stop="selectNode(node)">
+        <button v-for="(node, nodeIndex) in renderLayout.nodes" :key="node.id" type="button" class="skill-node" :class="[node.status, { selected: !batchMode && popoverVisible && (selectedId === (node.selectId ?? node.id) || previewNodeId === node.id), 'batch-selectable': batchMode && personalNodeId(node), 'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''), 'catalog-node': node.catalogNode, 'catalog-previewable': node.catalogNode && !node.selectId }]" :style="{ left: `${node.x}px`, top: `${node.y}px`, animationDelay: `${nodeIndex * 28}ms` }" @click.stop="selectNode(node)">
           <i v-if="batchMode && personalNodeId(node)" class="batch-check" aria-hidden="true"><Check v-if="batchSelectedIds.includes(personalNodeId(node) ?? '')" :size="12" /></i>
           <span>{{ node.name }}</span>
           <small>{{ node.meta ? `${node.meta} · ${node.selectId ? '个人已有' : '待学习'}` : `${node.level}/4 · ${node.status === 'mastered' ? '已掌握' : node.status === 'developing' ? '进行中' : node.status === 'target' ? '目标' : '缺口'}` }}</small>
         </button>
-        <div
-          v-if="selectedId && popoverVisible && $slots.inspector"
-          ref="popoverElement"
-          class="graph-node-popover"
-          :class="{ dragging: draggingPopover }"
-          :style="{ left: `${popoverPosition.x}px`, top: `${popoverPosition.y}px` }"
-          @click.stop
-        >
-          <slot name="inspector" :start-drag="startPopoverDrag" :close-popover="hidePopover" />
-        </div>
+        <Transition name="node-popover">
+          <div
+            v-if="popoverVisible && $slots.inspector"
+            ref="popoverElement"
+            class="graph-node-popover"
+            :class="{ dragging: draggingPopover }"
+            :style="{ left: `${popoverPosition.x}px`, top: `${popoverPosition.y}px` }"
+            @click.stop
+          >
+            <slot name="inspector" :start-drag="startPopoverDrag" :close-popover="clearSelection" />
+          </div>
+        </Transition>
       </div>
     </div>
   </section>
