@@ -518,9 +518,10 @@ function setScale(value: number) {
       </div>
     </div>
 
-    <div v-if="listMode" class="skill-list" :class="{ 'batch-mode': batchMode }" @click.self="clearSelection">
+    <Transition name="graph-view" mode="out-in">
+    <div v-if="listMode" key="list" class="skill-list" :class="{ 'batch-mode': batchMode }" @click.self="clearSelection">
       <button
-        v-for="node in renderLayout.nodes"
+        v-for="(node, nodeIndex) in renderLayout.nodes"
         :key="node.id"
         type="button"
         class="skill-list-item"
@@ -531,6 +532,7 @@ function setScale(value: number) {
         }"
         :aria-pressed="batchMode && personalNodeId(node) ? batchSelectedIds.includes(personalNodeId(node) ?? '') : undefined"
         :aria-disabled="batchMode && !personalNodeId(node)"
+        :style="{ animationDelay: `${nodeIndex * 30}ms` }"
         @click.stop="selectNode(node)"
       >
         <i v-if="batchMode" class="list-batch-check" aria-hidden="true"><Check v-if="batchSelectedIds.includes(personalNodeId(node) ?? '')" :size="12" /></i>
@@ -540,7 +542,7 @@ function setScale(value: number) {
       </button>
     </div>
 
-    <div v-else class="graph-viewport" @click.self="clearSelection">
+    <div v-else key="graph" class="graph-viewport" @click.self="clearSelection">
       <div v-if="!renderLayout.nodes.length" class="graph-empty">至少选择一个方向</div>
       <div v-else class="graph-canvas" @click.self="clearSelection" :class="[`orientation-${orientation}`, `mode-${treeMode}`]" :style="{ transform: `scale(${scale})`, width: `${renderLayout.width}px`, height: `${renderLayout.height}px` }">
         <div class="graph-columns" aria-hidden="true"><span v-for="column in renderLayout.columns" :key="column.depth" :style="{ left: `${column.x}px`, top: `${column.y}px` }">{{ column.label }}</span></div>
@@ -568,5 +570,6 @@ function setScale(value: number) {
         </Transition>
       </div>
     </div>
+    </Transition>
   </section>
 </template>

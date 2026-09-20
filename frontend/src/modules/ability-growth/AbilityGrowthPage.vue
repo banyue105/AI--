@@ -52,7 +52,7 @@ type CatalogContext = {
 }
 const catalogSelection = ref<CatalogContext | null>(null)
 const catalogPreview = ref<CatalogContext | null>(null)
-const expandedPathSkillIds = ref<string[]>([])
+const expandedPathSkillId = ref<string | null>(null)
 type RelationNeighbor = { id: string | null; name: string; status: SkillStatus; meta?: string }
 const graphRelationContext = ref<{
   nodeId: string
@@ -247,15 +247,23 @@ function nodeForPath(id: string) {
 }
 
 function togglePathDetail(skillId: string) {
-  expandedPathSkillIds.value = expandedPathSkillIds.value.includes(skillId)
-    ? expandedPathSkillIds.value.filter((id) => id !== skillId)
-    : [...expandedPathSkillIds.value, skillId]
+  expandedPathSkillId.value = expandedPathSkillId.value === skillId ? null : skillId
 }
+
+const expandedPathStep = computed(() =>
+  store.path.find((step) => step.skillId === expandedPathSkillId.value) ?? null,
+)
 
 function pathAction(step: GrowthPathStep) {
   if (step.status === 'done') return '用一次真实任务复验，并补充最新实践记录。'
   if (step.status === 'blocked') return `先完成前置能力：${step.prerequisiteIds.map(nodeName).join('、') || '基础知识准备'}。`
   return '完成一次最小实践，将结果和遇到的问题记录为能力证据。'
+}
+
+function pathFoundation(step: GrowthPathStep) {
+  const node = nodeForPath(step.skillId)
+  const status = statusOptions.find((item) => item.value === node?.status)?.label ?? '待确认'
+  return `${levelLabels[node?.level ?? 0]} · ${status}`
 }
 
 function scrollToSkillDetail() {
@@ -640,9 +648,10 @@ onMounted(async () => {
           </div>
           <button class="secondary-button compact" type="button" @click="store.regeneratePath"><RefreshCw :size="16" /> 重新生成</button>
         </div>
+        <div class="path-stage">
         <div class="path-list">
-          <article v-for="(step, index) in store.path" :key="step.skillId" class="path-step" :class="[step.status, { expanded: expandedPathSkillIds.includes(step.skillId) }]">
-            <button class="path-step-main" type="button" :aria-expanded="expandedPathSkillIds.includes(step.skillId)" @click="togglePathDetail(step.skillId)">
+          <article v-for="(step, index) in store.path" :key="step.skillId" class="path-step" :class="[step.status, { expanded: expandedPathSkillId === step.skillId }]">
+            <button class="path-step-main" type="button" :aria-expanded="expandedPathSkillId === step.skillId" @click="togglePathDetail(step.skillId)">
               <span class="path-marker">
                 <Check v-if="step.status === 'done'" :size="16" />
                 <span v-else>{{ index + 1 }}</span>
@@ -655,16 +664,21 @@ onMounted(async () => {
               </span>
               <ChevronDown class="path-toggle-icon" :size="18" />
             </button>
-            <div class="path-detail-shell" :class="{ expanded: expandedPathSkillIds.includes(step.skillId) }">
-              <div>
-                <div class="path-step-detail">
-                  <div><span>能力说明</span><p>{{ nodeForPath(step.skillId)?.description || '该能力尚未补充详细说明。' }}</p></div>
-                  <div><span>当前基础</span><strong>{{ levelLabels[nodeForPath(step.skillId)?.level ?? 0] }} · {{ statusOptions.find((item) => item.value === nodeForPath(step.skillId)?.status)?.label || '待确认' }}</strong></div>
-                  <div><span>下一步行动</span><p>{{ pathAction(step) }}</p></div>
-                </div>
-              </div>
-            </div>
           </article>
+        </div>
+        <Transition name="path-overlay" mode="out-in">
+          <section v-if="expandedPathStep" :key="expandedPathStep.skillId" class="path-detail-overlay">
+            <header>
+              <div><span>路径节点详情</span><strong>{{ nodeName(expandedPathStep.skillId) }}</strong></div>
+              <button class="summary-action" type="button" aria-label="关闭路径详情" title="关闭" @click="expandedPathSkillId = null"><X :size="15" /></button>
+            </header>
+            <div class="path-detail-grid">
+              <div><span>能力说明</span><p>{{ nodeForPath(expandedPathStep.skillId)?.description || '该能力尚未补充详细说明。' }}</p></div>
+              <div><span>当前基础</span><strong>{{ pathFoundation(expandedPathStep) }}</strong></div>
+              <div><span>下一步行动</span><p>{{ pathAction(expandedPathStep) }}</p></div>
+            </div>
+          </section>
+        </Transition>
         </div>
         <div class="path-assumption"><Info :size="16" /><span><strong>生成假设</strong> 当前路径仅依据你确认的能力等级与前置关系，不代表固定学时或结果保证。</span></div>
       </section>
