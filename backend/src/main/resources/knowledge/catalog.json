@@ -1,0 +1,567 @@
+[
+  {
+    "id": "frontend",
+    "title": "前端工程师",
+    "shortTitle": "前端",
+    "description": "构建可访问、可维护且性能稳定的网页应用。",
+    "outcome": "能够独立完成中型 Web 应用并建立工程化交付流程",
+    "source": "catalog",
+    "stages": [
+      {
+        "id": "foundation",
+        "title": "Web 基础",
+        "description": "浏览器呈现与交互的底层能力",
+        "items": [
+          {
+            "id": "fe-html",
+            "name": "HTML",
+            "description": "语义化结构、表单与可访问性",
+            "aliases": [
+              "HTML5"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-css",
+            "name": "CSS",
+            "description": "布局、响应式与设计系统",
+            "aliases": [
+              "CSS3"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-js",
+            "name": "JavaScript",
+            "description": "语言基础、DOM 与异步编程",
+            "aliases": [
+              "JS"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-browser",
+            "name": "浏览器原理",
+            "description": "渲染、事件循环与网络请求",
+            "aliases": [],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "core",
+        "title": "框架能力",
+        "description": "组件化开发与状态管理",
+        "items": [
+          {
+            "id": "fe-ts",
+            "name": "TypeScript",
+            "description": "类型建模与大型项目维护",
+            "aliases": [
+              "TS"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-vue",
+            "name": "Vue 3",
+            "description": "组合式 API 与组件设计",
+            "aliases": [
+              "Vue"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-router",
+            "name": "前端路由",
+            "description": "页面导航、鉴权与数据加载",
+            "aliases": [
+              "Vue Router"
+            ],
+            "priority": "recommended"
+          },
+          {
+            "id": "fe-state",
+            "name": "状态管理",
+            "description": "跨组件状态与数据流设计",
+            "aliases": [
+              "Pinia"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "engineering",
+        "title": "工程交付",
+        "description": "从本地代码到稳定上线",
+        "items": [
+          {
+            "id": "fe-git",
+            "name": "Git 协作",
+            "description": "分支、评审与版本管理",
+            "aliases": [
+              "Git"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-vite",
+            "name": "构建工具",
+            "description": "Vite、依赖与环境配置",
+            "aliases": [
+              "Vite"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "fe-test",
+            "name": "前端测试",
+            "description": "单元、组件与端到端测试",
+            "aliases": [
+              "Vitest",
+              "Playwright"
+            ],
+            "priority": "recommended"
+          },
+          {
+            "id": "fe-perf",
+            "name": "性能优化",
+            "description": "性能指标、拆包与缓存策略",
+            "aliases": [],
+            "priority": "recommended"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "backend",
+    "title": "后端工程师",
+    "shortTitle": "后端",
+    "description": "设计可靠接口、业务服务和数据持久化系统。",
+    "outcome": "能够设计并部署具备测试和可观测性的后端服务",
+    "source": "catalog",
+    "stages": [
+      {
+        "id": "foundation",
+        "title": "编程基础",
+        "description": "服务端语言与计算机基础",
+        "items": [
+          {
+            "id": "be-java",
+            "name": "Java",
+            "description": "面向对象、集合与并发基础",
+            "aliases": [],
+            "priority": "required"
+          },
+          {
+            "id": "be-ds",
+            "name": "数据结构",
+            "description": "常用结构与复杂度分析",
+            "aliases": [
+              "算法"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-linux",
+            "name": "Linux",
+            "description": "服务运行环境与常用命令",
+            "aliases": [],
+            "priority": "required"
+          },
+          {
+            "id": "be-network",
+            "name": "TCP/IP",
+            "description": "传输协议与网络排障基础",
+            "aliases": [
+              "网络基础"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "core",
+        "title": "服务开发",
+        "description": "接口、框架与数据持久化",
+        "items": [
+          {
+            "id": "be-http",
+            "name": "HTTP 服务",
+            "description": "REST 接口与状态码设计",
+            "aliases": [
+              "REST API",
+              "HTTP"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-spring",
+            "name": "Spring Boot",
+            "description": "依赖注入、Web 与数据访问",
+            "aliases": [
+              "Spring"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-mysql",
+            "name": "MySQL",
+            "description": "关系建模、索引与事务",
+            "aliases": [
+              "SQL"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-cache",
+            "name": "Redis",
+            "description": "缓存、过期与一致性",
+            "aliases": [],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "engineering",
+        "title": "可靠交付",
+        "description": "测试、部署与运行保障",
+        "items": [
+          {
+            "id": "be-test",
+            "name": "服务测试",
+            "description": "单元测试与接口集成测试",
+            "aliases": [
+              "JUnit"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-docker",
+            "name": "容器化",
+            "description": "镜像、容器与 Compose",
+            "aliases": [
+              "Docker"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "be-security",
+            "name": "服务安全",
+            "description": "认证、授权与密钥管理",
+            "aliases": [
+              "安全"
+            ],
+            "priority": "recommended"
+          },
+          {
+            "id": "be-monitor",
+            "name": "监控诊断",
+            "description": "日志、指标与链路追踪",
+            "aliases": [
+              "可观测性"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "network",
+    "title": "网络工程师",
+    "shortTitle": "网络工程",
+    "description": "规划、部署并诊断稳定安全的网络与服务环境。",
+    "outcome": "能够完成中小型网络规划、服务部署与故障诊断",
+    "source": "catalog",
+    "stages": [
+      {
+        "id": "foundation",
+        "title": "网络基础",
+        "description": "理解数据如何在网络中传输",
+        "items": [
+          {
+            "id": "ne-tcp",
+            "name": "TCP/IP",
+            "description": "分层模型、寻址与传输协议",
+            "aliases": [
+              "网络基础"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-subnet",
+            "name": "子网规划",
+            "description": "IPv4/IPv6 地址与子网划分",
+            "aliases": [
+              "IP 地址"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-route",
+            "name": "路由交换",
+            "description": "VLAN、静态与动态路由",
+            "aliases": [
+              "路由",
+              "交换"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-dns",
+            "name": "DNS 与 HTTP",
+            "description": "域名解析和应用层访问链路",
+            "aliases": [
+              "HTTP 服务",
+              "DNS"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "core",
+        "title": "系统与运维",
+        "description": "配置网络服务运行环境",
+        "items": [
+          {
+            "id": "ne-linux",
+            "name": "Linux",
+            "description": "系统、权限与网络命令",
+            "aliases": [],
+            "priority": "required"
+          },
+          {
+            "id": "ne-shell",
+            "name": "Shell 自动化",
+            "description": "批量配置与重复任务自动化",
+            "aliases": [
+              "Shell"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-service",
+            "name": "网络服务部署",
+            "description": "Web、DNS 与代理服务上线",
+            "aliases": [
+              "服务部署"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-docker",
+            "name": "容器化",
+            "description": "隔离并复现服务运行环境",
+            "aliases": [
+              "Docker"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      },
+      {
+        "id": "advanced",
+        "title": "安全与诊断",
+        "description": "保障网络可靠运行",
+        "items": [
+          {
+            "id": "ne-security",
+            "name": "网络安全",
+            "description": "访问控制、防火墙与风险识别",
+            "aliases": [
+              "服务安全"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-capture",
+            "name": "流量分析",
+            "description": "抓包、协议分析与异常定位",
+            "aliases": [
+              "Wireshark"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-monitor",
+            "name": "监控诊断",
+            "description": "日志、指标与告警处理",
+            "aliases": [
+              "网络监控"
+            ],
+            "priority": "required"
+          },
+          {
+            "id": "ne-python",
+            "name": "Python 自动化",
+            "description": "网络设备和配置自动化",
+            "aliases": [
+              "Python"
+            ],
+            "priority": "recommended"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "data-analyst",
+    "title": "数据分析师",
+    "shortTitle": "数据分析",
+    "description": "从数据整理、统计分析到可视化表达，支持业务决策。",
+    "outcome": "能够独立完成可复现的数据分析项目并清晰解释结论",
+    "source": "catalog",
+    "stages": [
+      { "id": "foundation", "title": "数据基础", "description": "建立数据处理与统计思维", "items": [
+        { "id": "da-python", "name": "Python 数据处理", "description": "使用 Python 完成数据读取、清洗与自动化", "aliases": ["Python", "Pandas"], "priority": "required" },
+        { "id": "da-sql", "name": "SQL 分析", "description": "查询、聚合、连接与窗口函数", "aliases": ["SQL", "MySQL"], "priority": "required" },
+        { "id": "da-stats", "name": "统计学", "description": "描述统计、抽样与假设检验", "aliases": ["统计分析"], "priority": "required" }
+      ] },
+      { "id": "core", "title": "分析建模", "description": "把业务问题转化为可验证指标", "items": [
+        { "id": "da-clean", "name": "数据清洗", "description": "处理缺失、异常和数据质量问题", "aliases": ["数据预处理"], "priority": "required" },
+        { "id": "da-metric", "name": "指标体系", "description": "定义口径、维度和业务指标", "aliases": ["指标设计"], "priority": "required" },
+        { "id": "da-visual", "name": "数据可视化", "description": "选择图表并表达趋势、对比与分布", "aliases": ["BI", "Tableau", "ECharts"], "priority": "recommended" }
+      ] },
+      { "id": "delivery", "title": "业务交付", "description": "让分析结果可复现、可沟通、可行动", "items": [
+        { "id": "da-dashboard", "name": "分析看板", "description": "构建可筛选、可追踪的业务看板", "aliases": ["BI 看板"], "priority": "required" },
+        { "id": "da-story", "name": "数据叙事", "description": "说明结论、证据、限制和建议", "aliases": ["汇报"], "priority": "required" },
+        { "id": "da-project", "name": "分析项目", "description": "完成一个端到端可复现案例", "aliases": ["数据项目"], "priority": "recommended" }
+      ] }
+    ]
+  },
+  {
+    "id": "ml-engineer",
+    "title": "机器学习工程师",
+    "shortTitle": "机器学习",
+    "description": "构建、评估并部署可复用的机器学习系统。",
+    "outcome": "能够完成从数据准备到模型服务上线的完整流程",
+    "source": "catalog",
+    "stages": [
+      { "id": "foundation", "title": "数学与编程", "description": "掌握机器学习所需的基础工具", "items": [
+        { "id": "ml-python", "name": "Python 编程", "description": "使用 Python 编写可维护的数据与工程代码", "aliases": ["Python"], "priority": "required" },
+        { "id": "ml-math", "name": "线性代数与概率", "description": "理解向量、矩阵、概率和统计基础", "aliases": ["数学基础"], "priority": "required" },
+        { "id": "ml-sql", "name": "数据查询", "description": "使用 SQL 获取和验证训练数据", "aliases": ["SQL"], "priority": "recommended" }
+      ] },
+      { "id": "core", "title": "模型开发", "description": "训练、评估和改进机器学习模型", "items": [
+        { "id": "ml-supervised", "name": "监督学习", "description": "分类、回归和特征工程", "aliases": ["机器学习"], "priority": "required" },
+        { "id": "ml-deep", "name": "深度学习", "description": "神经网络、训练策略和常见架构", "aliases": ["神经网络", "PyTorch"], "priority": "required" },
+        { "id": "ml-eval", "name": "模型评估", "description": "指标、交叉验证、偏差与泛化分析", "aliases": ["模型验证"], "priority": "required" }
+      ] },
+      { "id": "delivery", "title": "模型工程", "description": "将模型交付为稳定可观测的服务", "items": [
+        { "id": "ml-pipeline", "name": "特征与训练流水线", "description": "组织数据、特征和训练流程", "aliases": ["MLOps"], "priority": "required" },
+        { "id": "ml-serving", "name": "模型服务", "description": "通过 API 部署模型并处理版本管理", "aliases": ["推理服务"], "priority": "required" },
+        { "id": "ml-monitor", "name": "模型监控", "description": "监控数据漂移、性能和服务健康", "aliases": ["模型运维"], "priority": "recommended" }
+      ] }
+    ]
+  },
+  {
+    "id": "devops",
+    "title": "DevOps 工程师",
+    "shortTitle": "DevOps",
+    "description": "通过自动化、容器和可观测性提升交付效率与稳定性。",
+    "outcome": "能够建立从代码提交到稳定发布的自动化交付链路",
+    "source": "catalog",
+    "stages": [
+      { "id": "foundation", "title": "系统基础", "description": "掌握运行环境与协作工具", "items": [
+        { "id": "do-linux", "name": "Linux 运维", "description": "进程、权限、网络和服务管理", "aliases": ["Linux"], "priority": "required" },
+        { "id": "do-git", "name": "Git 协作", "description": "分支、评审和版本管理", "aliases": ["Git"], "priority": "required" },
+        { "id": "do-shell", "name": "Shell 自动化", "description": "用脚本自动化重复运维任务", "aliases": ["Shell", "Bash"], "priority": "required" }
+      ] },
+      { "id": "core", "title": "交付平台", "description": "构建可重复的构建、测试和部署流程", "items": [
+        { "id": "do-docker", "name": "容器化", "description": "构建镜像并管理容器运行环境", "aliases": ["Docker"], "priority": "required" },
+        { "id": "do-ci", "name": "持续集成与部署", "description": "自动执行构建、测试和发布", "aliases": ["CI/CD", "Jenkins", "GitHub Actions"], "priority": "required" },
+        { "id": "do-k8s", "name": "Kubernetes", "description": "编排、服务发现和滚动发布", "aliases": ["K8s"], "priority": "recommended" }
+      ] },
+      { "id": "delivery", "title": "可靠性保障", "description": "让系统可观测、可恢复、可持续优化", "items": [
+        { "id": "do-iac", "name": "基础设施即代码", "description": "用代码管理环境和资源配置", "aliases": ["Terraform", "IaC"], "priority": "required" },
+        { "id": "do-observe", "name": "可观测性", "description": "日志、指标、链路和告警体系", "aliases": ["监控", "Prometheus"], "priority": "required" },
+        { "id": "do-security", "name": "DevSecOps", "description": "把安全检查融入交付流程", "aliases": ["DevOps 安全"], "priority": "recommended" }
+      ] }
+    ]
+  },
+  {
+    "id": "mobile",
+    "title": "移动端工程师",
+    "shortTitle": "移动开发",
+    "description": "设计、开发并交付稳定流畅的移动应用。",
+    "outcome": "能够独立完成跨平台或原生移动应用的开发与发布",
+    "source": "catalog",
+    "stages": [
+      { "id": "foundation", "title": "移动基础", "description": "掌握移动平台和客户端编程基础", "items": [
+        { "id": "mo-language", "name": "移动端编程", "description": "掌握 Kotlin、Swift 或 Dart 等客户端语言", "aliases": ["Kotlin", "Swift", "Dart"], "priority": "required" },
+        { "id": "mo-ui", "name": "移动 UI", "description": "布局、交互、适配和无障碍设计", "aliases": ["Android UI", "iOS UI"], "priority": "required" },
+        { "id": "mo-network", "name": "移动网络", "description": "请求、缓存、弱网和数据同步", "aliases": ["移动端网络"], "priority": "required" }
+      ] },
+      { "id": "core", "title": "应用架构", "description": "组织复杂页面、状态和数据流", "items": [
+        { "id": "mo-state", "name": "状态管理", "description": "设计可维护的客户端状态和数据流", "aliases": ["MVVM", "Redux"], "priority": "required" },
+        { "id": "mo-storage", "name": "本地存储", "description": "缓存、数据库和离线数据处理", "aliases": ["SQLite"], "priority": "recommended" },
+        { "id": "mo-native", "name": "平台能力", "description": "相机、定位、推送和权限管理", "aliases": ["原生 API"], "priority": "required" }
+      ] },
+      { "id": "delivery", "title": "发布与质量", "description": "测试性能并完成应用商店发布", "items": [
+        { "id": "mo-test", "name": "移动端测试", "description": "单元、UI、设备兼容和自动化测试", "aliases": ["App 测试"], "priority": "required" },
+        { "id": "mo-perf", "name": "移动性能优化", "description": "启动、渲染、内存和电量优化", "aliases": ["App 性能"], "priority": "required" },
+        { "id": "mo-release", "name": "应用发布", "description": "签名、灰度、崩溃分析和版本发布", "aliases": ["App Store", "应用商店"], "priority": "recommended" }
+      ] }
+    ]
+  }  ,{
+    "id": "data-engineer", "title": "数据工程师", "shortTitle": "数据工程", "description": "建设可靠的数据采集、存储、处理与交付系统。", "outcome": "能够完成可复现的数据管道和数据服务交付", "source": "catalog", "stages": [
+      { "id": "de-foundation", "title": "数据基础", "description": "理解数据结构与存储系统", "items": [
+        { "id": "de-sql", "name": "SQL 建模", "description": "表结构、查询、索引与事务", "aliases": ["SQL"], "priority": "required" },
+        { "id": "de-python", "name": "Python 数据处理", "description": "使用 Python 清洗和转换数据", "aliases": ["Pandas"], "priority": "required" },
+        { "id": "de-storage", "name": "数据存储", "description": "关系库、数仓与对象存储", "aliases": ["数据仓库"], "priority": "recommended" }
+      ] },
+      { "id": "de-pipeline", "title": "数据管道", "description": "构建稳定可追踪的数据流", "items": [
+        { "id": "de-etl", "name": "ETL 与 ELT", "description": "抽取、转换、加载和质量校验", "aliases": ["ETL"], "priority": "required" },
+        { "id": "de-orchestration", "name": "任务编排", "description": "依赖调度、重试与任务监控", "aliases": ["Airflow"], "priority": "required" },
+        { "id": "de-stream", "name": "流式处理", "description": "事件流、窗口计算与实时指标", "aliases": ["Kafka", "实时数仓"], "priority": "recommended" }
+      ] },
+      { "id": "de-delivery", "title": "数据交付", "description": "让数据可服务、可治理、可复用", "items": [
+        { "id": "de-spark", "name": "分布式计算", "description": "大规模数据处理与资源管理", "aliases": ["Spark"], "priority": "required" },
+        { "id": "de-quality", "name": "数据质量", "description": "完整性、准确性与血缘检查", "aliases": ["数据治理"], "priority": "required" },
+        { "id": "de-serving", "name": "数据服务", "description": "指标服务、数据 API 与权限控制", "aliases": ["Data API"], "priority": "recommended" }
+      ] }
+    ]
+  },
+  {
+    "id": "product-manager", "title": "产品经理", "shortTitle": "产品经理", "description": "从用户问题到产品方案、验证和迭代。", "outcome": "能够独立完成一个产品从调研到迭代的闭环", "source": "catalog", "stages": [
+      { "id": "pm-foundation", "title": "用户与问题", "description": "发现真实需求并定义问题", "items": [
+        { "id": "pm-research", "name": "用户研究", "description": "访谈、问卷与行为分析", "aliases": ["用户调研"], "priority": "required" },
+        { "id": "pm-problem", "name": "问题定义", "description": "目标用户、场景与痛点边界", "aliases": ["需求分析"], "priority": "required" },
+        { "id": "pm-market", "name": "市场分析", "description": "竞品、行业和机会判断", "aliases": ["竞品分析"], "priority": "recommended" }
+      ] },
+      { "id": "pm-design", "title": "方案设计", "description": "把问题转化为可验证方案", "items": [
+        { "id": "pm-prd", "name": "产品需求文档", "description": "目标、流程、规则与验收标准", "aliases": ["PRD"], "priority": "required" },
+        { "id": "pm-prototype", "name": "原型设计", "description": "信息架构、交互流程与原型验证", "aliases": ["交互原型"], "priority": "required" },
+        { "id": "pm-priority", "name": "需求优先级", "description": "价值、成本和风险权衡", "aliases": ["需求排期"], "priority": "recommended" }
+      ] },
+      { "id": "pm-delivery", "title": "交付迭代", "description": "通过数据和反馈持续改进产品", "items": [
+        { "id": "pm-metrics", "name": "产品指标", "description": "北极星指标、漏斗和留存分析", "aliases": ["数据指标"], "priority": "required" },
+        { "id": "pm-experiment", "name": "实验验证", "description": "灰度、A/B 测试与结论分析", "aliases": ["AB 测试"], "priority": "required" },
+        { "id": "pm-roadmap", "name": "产品路线图", "description": "版本目标、资源协同与复盘", "aliases": ["Roadmap"], "priority": "recommended" }
+      ] }
+    ]
+  },
+  {
+    "id": "cybersecurity", "title": "网络安全工程师", "shortTitle": "网络安全", "description": "识别风险、保护系统并响应安全事件。", "outcome": "能够完成基础安全评估、防护配置和事件响应", "source": "catalog", "stages": [
+      { "id": "sec-foundation", "title": "安全基础", "description": "掌握系统、网络与安全边界", "items": [
+        { "id": "sec-network", "name": "网络安全基础", "description": "协议、边界、访问控制与威胁模型", "aliases": ["信息安全"], "priority": "required" },
+        { "id": "sec-linux", "name": "Linux 安全", "description": "权限、审计、加固与进程管理", "aliases": ["系统安全"], "priority": "required" },
+        { "id": "sec-crypto", "name": "密码学基础", "description": "加密、哈希、签名和密钥管理", "aliases": ["密码学"], "priority": "recommended" }
+      ] },
+      { "id": "sec-defense", "title": "防护与测试", "description": "发现漏洞并建立防护措施", "items": [
+        { "id": "sec-web", "name": "Web 安全", "description": "常见漏洞、认证和输入防护", "aliases": ["OWASP"], "priority": "required" },
+        { "id": "sec-pentest", "name": "渗透测试", "description": "资产发现、验证和风险复现", "aliases": ["安全测试"], "priority": "required" },
+        { "id": "sec-cloud", "name": "云安全", "description": "云身份、网络和资源配置安全", "aliases": ["容器安全"], "priority": "recommended" }
+      ] },
+      { "id": "sec-response", "title": "检测与响应", "description": "持续监控并处理安全事件", "items": [
+        { "id": "sec-monitor", "name": "安全监控", "description": "日志、告警和异常行为分析", "aliases": ["SIEM"], "priority": "required" },
+        { "id": "sec-response", "name": "事件响应", "description": "隔离、取证、恢复和复盘", "aliases": ["应急响应"], "priority": "required" },
+        { "id": "sec-compliance", "name": "安全合规", "description": "制度、审计与风险治理", "aliases": ["合规"], "priority": "recommended" }
+      ] }
+    ]
+  }
+]

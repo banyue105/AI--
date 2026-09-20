@@ -19,7 +19,7 @@ function findMatchingNode(item: KnowledgeStackItem, nodes: SkillNode[]) {
 
   return nodes.find((node) => {
     const nodeName = normalizeName(node.name)
-    return names.some((name) => name.length >= 3 && (nodeName.includes(name) || name.includes(nodeName)))
+    return names.some((name) => name.length >= 5 && nodeName.length >= 5 && (nodeName.includes(name) || name.includes(nodeName)))
   })
 }
 
@@ -51,24 +51,43 @@ export function buildCatalogRelations(
     .filter((entry) => entry.item.id !== currentItem.id)
     .map((entry) => ({ ...entry, node: findMatchingNode(entry.item, existingNodes) }))
     .filter((entry): entry is OrderedStackItem & { node: SkillNode } => Boolean(entry.node))
-  const previous = matched.filter((entry) => entry.order < current.order).at(-1)
-  const next = matched.find((entry) => entry.order > current.order)
+  const sameStage = matched.filter((entry) => entry.stageId === current.stageId)
+  const previousSibling = sameStage.filter((entry) => entry.order < current.order).at(-1)
+  const nextSibling = sameStage.find((entry) => entry.order > current.order)
+  const previousStage = matched.filter((entry) => entry.stageIndex < current.stageIndex).at(-1)
+  const nextStage = matched.find((entry) => entry.stageIndex > current.stageIndex)
   const relations: SkillRelation[] = []
 
-  if (previous) {
+  if (previousSibling) {
     relations.push({
-      from: previous.node.id,
+      from: previousSibling.node.id,
       to: currentNodeId,
-      type: relationType(previous, current),
-      confidence: previous.stageIndex === current.stageIndex ? 0.72 : 0.86,
+      type: 'related',
+      confidence: 0.72,
     })
   }
-  if (next) {
+  if (nextSibling) {
     relations.push({
       from: currentNodeId,
-      to: next.node.id,
-      type: relationType(current, next),
-      confidence: next.stageIndex === current.stageIndex ? 0.72 : 0.86,
+      to: nextSibling.node.id,
+      type: 'related',
+      confidence: 0.72,
+    })
+  }
+  if (previousStage) {
+    relations.push({
+      from: previousStage.node.id,
+      to: currentNodeId,
+      type: 'prerequisite',
+      confidence: 0.86,
+    })
+  }
+  if (nextStage) {
+    relations.push({
+      from: currentNodeId,
+      to: nextStage.node.id,
+      type: 'prerequisite',
+      confidence: 0.86,
     })
   }
 

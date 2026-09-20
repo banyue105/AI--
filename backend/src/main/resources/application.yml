@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: tuojie-assistant
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3307}/${DB_NAME:ican_assistant}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&sslMode=PREFERRED}
+    username: ${DB_USERNAME:ican}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8000}
+  error:
+    include-message: never
+    include-stacktrace: never
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    arg-name-based-constructor-auto-mapping: true
+    default-statement-timeout: 10
+app:
+  cors-allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+app.ai:
+  provider: ${AI_PROVIDER:mock}
+  base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+  api-key: ${AI_API_KEY:}
+  model: ${AI_MODEL:gpt-4o-mini}
+  timeout-ms: ${AI_TIMEOUT_MS:30000}
+  fallback-to-mock: ${AI_FALLBACK_TO_MOCK:true}
+  disable-thinking: ${AI_DISABLE_THINKING:false}

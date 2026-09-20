@@ -112,18 +112,18 @@ function handleStackItem(item: KnowledgeStackItem, stage: KnowledgeStackStage) {
     <div class="section-heading compact-heading knowledge-heading">
       <div>
         <p class="eyebrow">知识分类</p>
-        <h2 id="knowledge-title">选择或生成一个知识方向</h2>
+        <h2 id="knowledge-title">选择预置方向或让 AI 生成</h2>
       </div>
       <span>结构化方向 · 阶段 · 技术项</span>
     </div>
 
     <form class="knowledge-query" @submit.prevent="query.trim() && emit('generate', query.trim())">
-      <label for="knowledge-direction"><Sparkles :size="17" /> 目标方向</label>
+      <label for="knowledge-direction"><Sparkles :size="17" /> AI 目标方向</label>
       <input id="knowledge-direction" v-model="query" placeholder="例如：数据分析师、机器学习工程师、产品经理" />
       <button class="primary-button" type="submit" :disabled="generating || !query.trim()">
         <LoaderCircle v-if="generating" class="spin-icon" :size="17" />
         <Sparkles v-else :size="17" />
-        {{ generating ? '生成中' : '生成技术栈' }}
+        {{ generating ? 'AI 生成中' : 'AI 生成技术栈' }}
       </button>
     </form>
     <p v-if="generationError" class="knowledge-error">{{ generationError }}</p>

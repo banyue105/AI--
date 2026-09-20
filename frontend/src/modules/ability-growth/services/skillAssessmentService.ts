@@ -47,6 +47,22 @@ const genericQuestions: SkillQuestion[] = [
   { id: 'generic-3', prompt: '哪项记录最有助于复盘一次实践？', options: ['只写完成了', '记录目标、过程、结果和问题', '只保留截图', '不做记录'], answerIndex: 1, explanation: '完整记录目标、过程、结果和问题，才能支持后续复盘和能力判断。' },
 ]
 
+function cacheKey(skillId: string) {
+  const userId = localStorage.getItem('ican:user-id') || 'demo-user'
+  return `ican:assessment:${userId}:${skillId}`
+}
+
+function cachedQuestions(skillId: string): SkillQuestion[] | null {
+  try {
+    const value = localStorage.getItem(cacheKey(skillId))
+    if (!value) return null
+    const questions = JSON.parse(value) as SkillQuestion[]
+    return Array.isArray(questions) && questions.length ? questions : null
+  } catch {
+    return null
+  }
+}
+
 function localQuestions(skill: SkillNode) {
   const normalized = `${skill.id} ${skill.name}`.toLowerCase()
   const key = Object.keys(questionBank).find((candidate) => normalized.includes(candidate))
@@ -56,12 +72,32 @@ function localQuestions(skill: SkillNode) {
 }
 
 export const skillAssessmentService = {
+  saveGeneratedQuestions(
+    skillId: string,
+    questions: Array<{ question: string; options?: string[]; answerIndex?: number; explanation?: string }>,
+  ) {
+    const normalized = questions.flatMap((question, index) => {
+      if (!question.question?.trim() || !question.options || question.options.length < 2) return []
+      return [{
+        id: `${skillId}-ai-${index + 1}`,
+        prompt: question.question.trim(),
+        options: question.options,
+        answerIndex: Math.max(0, Math.min(question.options.length - 1, question.answerIndex ?? 0)),
+        explanation: question.explanation?.trim() || '请结合技能说明和实践结果复盘答案。',
+      } satisfies SkillQuestion]
+    })
+    if (normalized.length) localStorage.setItem(cacheKey(skillId), JSON.stringify(normalized))
+  },
+
   async getQuestions(skill: SkillNode): Promise<SkillQuestion[]> {
+    const cached = cachedQuestions(skill.id)
+    if (cached) return structuredClone(cached)
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 900)
+    const timeout = window.setTimeout(() => controller.abort(), 35000)
     try {
       const response = await fetch(`/api/v1/ability/skills/${encodeURIComponent(skill.id)}/assessment/questions`, {
         signal: controller.signal,
+        headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
       })
       if (!response.ok) throw new Error(`API ${response.status}`)
       const result = await response.json() as { questions?: SkillQuestion[] } | SkillQuestion[]

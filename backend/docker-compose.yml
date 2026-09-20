@@ -1,0 +1,23 @@
+name: ican-assistant
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-ican_assistant}
+      MYSQL_USER: ${DB_USERNAME:-ican}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in backend/.env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in backend/.env}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${DB_PORT:-3307}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" -D \"$$MYSQL_DATABASE\" -e 'SELECT 1' > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+volumes:
+  mysql-data:

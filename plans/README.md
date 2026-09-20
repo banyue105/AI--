@@ -60,8 +60,10 @@ AI 处理信息 → 形成结构化数据 → 网页进行可视化展示 → �
 
 ```text
 数据库：docker compose -f backend/docker-compose.yml up -d
-后端：cd backend && mvn spring-boot:run
+后端：cd backend && .\\mvnw.cmd spring-boot:run
 前端：cd frontend && npm install && npm run dev
 ```
 
 前端开发服务器通过 `/api` 代理到 `http://localhost:8000`。生产部署时使用环境变量配置后端地址，不能把本地地址写死在业务组件中。
+
+后端使用 MyBatis、Flyway 和本地 MySQL。团队开始模块开发前，必须阅读 `00-shared-integration.md` 中的受控 AI 目录约束，以及 `00-ui-style-contract.md` 的能力成长动画基线。

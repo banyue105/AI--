@@ -11,7 +11,6 @@ import {
   ClipboardCheck,
   FileCheck2,
   GripVertical,
-  Info,
   Layers3,
   Network,
   Pencil,
@@ -26,6 +25,7 @@ import {
 } from 'lucide-vue-next'
 import AbilityGraph from './components/AbilityGraph.vue'
 import KnowledgeCatalog from './components/KnowledgeCatalog.vue'
+import aiService from './services/aiService'
 import { useAbilityStore } from './stores/abilityStore'
 import { skillAssessmentService, type SkillQuestion } from './services/skillAssessmentService'
 import type { GrowthPathStep, SkillLevel, SkillNode, SkillStatus } from './types'
@@ -45,6 +45,18 @@ const knowledgeTracks = ref<KnowledgeTrack[]>([])
 const selectedKnowledgeTrackId = ref<KnowledgeTrackId>('network')
 const generatingKnowledge = ref(false)
 const knowledgeGenerationError = ref('')
+const directionChoicesOpen = ref(false)
+const unresolvedDirectionQuery = ref('')
+type ProfileState = { id: string; name: string; avatar?: string | null; goals: string[] }
+const profileState = ref<ProfileState | null>(null)
+const goalSaving = ref(false)
+const goalSelectionError = ref('')
+const goalMenuOpen = ref(false)
+const goalSlideDirection = ref<'left' | 'right'>('right')
+const growthGoals = computed(() => (store.graph?.nodes ?? []).filter((node) => node.status === 'target'))
+const currentGoalId = computed(() => store.currentTargetId ?? growthGoals.value[0]?.id ?? '')
+const targetSkillLabel = computed(() => store.graph?.nodes.find((node) => node.id === currentGoalId.value)?.name ?? '')
+const targetScopeNodes = computed(() => store.graph?.nodes.filter((node) => store.targetScopeIds.has(node.id)) ?? [])
 type CatalogContext = {
   item: KnowledgeStackItem
   stage: KnowledgeStackStage
@@ -68,10 +80,6 @@ const statusOptions: Array<{ value: SkillStatus; label: string }> = [
 ]
 const form = reactive({ id: '', name: '', description: '', level: 1 as SkillLevel, status: 'developing' as SkillStatus })
 
-const deadlineDays = computed(() => {
-  if (!store.graph?.goal.deadline) return null
-  return Math.max(0, Math.ceil((new Date(store.graph.goal.deadline).getTime() - Date.now()) / 86400000))
-})
 const selectedEvidence = computed(() => store.evidenceForSelected)
 const selectedNeighbors = computed<{ previous: RelationNeighbor[]; next: RelationNeighbor[] }>(() => {
   const graph = store.graph
@@ -173,6 +181,34 @@ function selectCatalogSkill(id: string) {
   window.setTimeout(() => document.querySelector('.workspace-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
 }
 
+async function selectGrowthGoal(goalId: string) {
+  const selected = growthGoals.value.find((goal) => goal.id === goalId)
+  if (!selected || !store.graph) return
+  const currentIndex = growthGoals.value.findIndex((goal) => goal.id === currentGoalId.value)
+  const nextIndex = growthGoals.value.findIndex((goal) => goal.id === selected.id)
+  goalSlideDirection.value = nextIndex >= currentIndex ? 'right' : 'left'
+  goalMenuOpen.value = false
+  closeInspector()
+  expandedPathSkillId.value = null
+  goalSaving.value = true
+  goalSelectionError.value = ''
+  try {
+    await store.setCurrentTarget(selected.id)
+  } catch {
+    goalSelectionError.value = '目标已切换，但路径暂时无法刷新。'
+  } finally {
+    goalSaving.value = false
+  }
+}
+
+async function loadProfileState() {
+  try {
+    const response = await fetch('/api/v1/profile', { headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' } })
+    if (response.ok) profileState.value = await response.json() as ProfileState
+  } catch {
+    profileState.value = null
+  }
+}
 async function generateKnowledgeTrack(query: string) {
   if (!store.graph) return
   generatingKnowledge.value = true
@@ -188,11 +224,21 @@ async function generateKnowledgeTrack(query: string) {
       knowledgeTracks.value.push(track)
       selectedKnowledgeTrackId.value = track.id
     }
+    store.flash(`已切换到“${track.title}”知识分类`)
   } catch {
-    knowledgeGenerationError.value = '暂时无法生成该方向，请稍后重试。'
+    directionChoicesOpen.value = true
+    knowledgeGenerationError.value = '无法匹配预置方向，请输入更具体的目标，或直接从下方预置方向中选择。'
   } finally {
     generatingKnowledge.value = false
   }
+}
+
+function chooseGeneratedDirection(id: KnowledgeTrackId) {
+  selectedKnowledgeTrackId.value = id
+  directionChoicesOpen.value = false
+  knowledgeGenerationError.value = ''
+  const track = knowledgeTracks.value.find((item) => item.id === id)
+  if (track) store.flash(`已选择“${track.title}”知识分类`)
 }
 
 function deleteKnowledgeTrack(id: KnowledgeTrackId) {
@@ -210,6 +256,24 @@ function deleteKnowledgeTrack(id: KnowledgeTrackId) {
 async function submitNode() {
   if (!form.name.trim()) return
   const isNew = !form.id
+  let aiRelations: Array<{ from: string; to: string; type: 'prerequisite' | 'related'; confidence: number }> = []
+  let aiQuestions: Array<{ question: string; options?: string[]; answerIndex?: number; explanation?: string }> = []
+  // Directory items already carry vetted descriptions and relations. Do not block
+  // their addition on a second AI enrichment request.
+  if (isNew && store.graph && !catalogSelection.value) {
+    try {
+      const enrichment = await aiService.enrichSkill(form.name.trim(), store.graph.nodes.map(({ id, name }) => ({ id, name })))
+      if (!form.description.trim() && enrichment.skill.description) form.description = enrichment.skill.description
+      if (enrichment.skill.proficiency !== undefined) form.level = Math.max(0, Math.min(4, enrichment.skill.proficiency)) as SkillLevel
+      aiQuestions = enrichment.questions ?? []
+      aiRelations = enrichment.relations.flatMap((relation) => {
+        const existing = store.graph?.nodes.find((item) => item.id === relation.existingSkillId)
+        return existing ? [{ from: existing.id, to: form.id || 'pending-ai-node', type: relation.type === 'prerequisite' ? 'prerequisite' : 'related', confidence: 0.72 }] : []
+      })
+    } catch {
+      // Manual creation remains available when the model is unavailable.
+    }
+  }
   const node: SkillNode = {
     id: form.id || `skill-${Date.now()}`,
     name: form.name.trim(),
@@ -231,7 +295,10 @@ async function submitNode() {
       )
     : []
   await store.saveNode(node)
-  await store.saveRelations(relations)
+  const savedNodeId = store.selectedId ?? node.id
+  if (isNew && aiQuestions.length) skillAssessmentService.saveGeneratedQuestions(savedNodeId, aiQuestions)
+  const normalizedAiRelations = aiRelations.map((relation) => ({ ...relation, to: savedNodeId }))
+  await store.saveRelations([...relations, ...normalizedAiRelations])
   catalogSelection.value = null
   showEditor.value = false
 }
@@ -329,13 +396,21 @@ watch(
 onMounted(async () => {
   await Promise.all([
     store.load(),
+    loadProfileState(),
     knowledgeCatalogService.getCatalog().then((catalog) => {
-      knowledgeTracks.value = catalog
+      const defaultDirectionIds = new Set(['frontend', 'backend', 'network'])
+      knowledgeTracks.value = catalog.filter((track) => defaultDirectionIds.has(track.id))
       if (!catalog.some((track) => track.id === selectedKnowledgeTrackId.value)) {
         selectedKnowledgeTrackId.value = catalog[0]?.id ?? ''
       }
     }),
   ])
+
+  const persistedGoal = profileState.value?.goals[0]
+  if (persistedGoal && store.graph && persistedGoal !== store.graph.goal.title) {
+    store.graph.goal = { ...store.graph.goal, title: persistedGoal }
+    await store.regeneratePath()
+  }
 })
 </script>
 
@@ -368,18 +443,30 @@ onMounted(async () => {
     <div v-else-if="store.graph" class="ability-content">
       <section class="ability-overview">
         <div class="overview-copy">
-          <p class="eyebrow">当前成长目标</p>
-          <h1>{{ store.graph.goal.title }}</h1>
-          <div class="goal-meta">
-            <span><Target :size="16" /> 目标能力：网络服务部署</span>
-            <span v-if="deadlineDays !== null">{{ deadlineDays }} 天后复盘</span>
+          <p class="eyebrow">当前目标</p>
+          <div class="goal-heading-row">
+            <Transition :name="`goal-title-${goalSlideDirection}`" mode="out-in"><h1 :key="currentGoalId">{{ targetSkillLabel || '请选择目标技能点' }}</h1></Transition>
+            <Transition name="goal-selector" mode="out-in">
+            <div :key="currentGoalId" class="goal-selector" :class="{ open: goalMenuOpen }" :style="{ '--goal-shift': goalSlideDirection === 'right' ? '10px' : '-10px' }">
+              <span>切换目标</span>
+              <button class="goal-menu-trigger" type="button" :aria-expanded="goalMenuOpen" @click="goalMenuOpen = !goalMenuOpen">
+                <span>{{ targetSkillLabel || '请选择目标技能点' }}</span><ChevronDown :size="16" />
+              </button>
+              <Transition name="path-overlay">
+                <div v-if="goalMenuOpen" class="goal-menu" role="listbox">
+                  <button v-for="goal in growthGoals" :key="goal.id" type="button" :class="{ active: goal.id === currentGoalId }" @click="selectGrowthGoal(goal.id)">{{ goal.name }}</button>
+                </div>
+              </Transition>
+            </div>
+            </Transition>
           </div>
+          <p v-if="goalSelectionError" class="goal-selection-error">{{ goalSelectionError }}</p>
         </div>
         <div class="overview-progress">
           <div class="progress-ring" :style="{ '--progress': `${store.progress * 3.6}deg` }">
-            <span><strong>{{ store.progress }}%</strong><small>路径基础</small></span>
+            <Transition name="progress-value" mode="out-in"><span :key="currentGoalId"><strong>{{ store.progress }}%</strong><small>路径基础</small></span></Transition>
           </div>
-          <div class="progress-copy"><strong>{{ store.graph.nodes.filter((node) => node.level >= 2).length }}/{{ store.graph.nodes.length }}</strong><span>项能力已有实践基础</span></div>
+          <div class="progress-copy"><Transition name="progress-value" mode="out-in"><strong :key="currentGoalId">{{ targetScopeNodes.filter((node) => node.level >= 2).length }}/{{ targetScopeNodes.length }}</strong></Transition><span>项当前目标前置能力已有实践基础</span></div>
         </div>
       </section>
 
@@ -393,7 +480,7 @@ onMounted(async () => {
           <button class="primary-button" type="submit" :disabled="store.parsing || !quickInput.trim()">
             <RefreshCw v-if="store.parsing" class="spin-icon" :size="17" />
             <Sparkles v-else :size="17" />
-            {{ store.parsing ? '分析中' : '结构化' }}
+            {{ store.parsing ? 'AI 分析中' : 'AI 分析' }}
           </button>
         </form>
 
@@ -429,6 +516,8 @@ onMounted(async () => {
             :nodes="store.graph.nodes"
             :relations="store.graph.relations"
             :tracks="knowledgeTracks"
+            :path="store.path"
+            :current-target-id="store.currentTargetId"
             :selected-id="store.selectedId"
             @select="selectGraphSkill"
             @preview-catalog="openGraphCatalogPreview"
@@ -646,9 +735,12 @@ onMounted(async () => {
             <p class="eyebrow">可解释路径</p>
             <h2>到达目标，还需要补齐什么</h2>
           </div>
-          <button class="secondary-button compact" type="button" @click="store.regeneratePath"><RefreshCw :size="16" /> 重新生成</button>
+          <button class="secondary-button compact" type="button" :disabled="store.pathLoading" @click="store.regeneratePath"><RefreshCw v-if="store.pathLoading" class="spin-icon" :size="16" /><Sparkles v-else :size="16" /> {{ store.pathLoading ? '正在生成路径' : 'AI 重新生成' }}</button>
         </div>
-        <div class="path-stage">
+        <div class="path-stage" :class="{ 'is-loading': store.pathLoading }">
+        <Transition name="path-loading">
+          <div v-if="store.pathLoading" class="path-loading-state"><RefreshCw class="spin-icon" :size="18" /><span>正在为当前目标整理可解释路径</span></div>
+        </Transition>
         <div class="path-list">
           <article v-for="(step, index) in store.path" :key="step.skillId" class="path-step" :class="[step.status, { expanded: expandedPathSkillId === step.skillId }]">
             <button class="path-step-main" type="button" :aria-expanded="expandedPathSkillId === step.skillId" @click="togglePathDetail(step.skillId)">
@@ -680,7 +772,6 @@ onMounted(async () => {
           </section>
         </Transition>
         </div>
-        <div class="path-assumption"><Info :size="16" /><span><strong>生成假设</strong> 当前路径仅依据你确认的能力等级与前置关系，不代表固定学时或结果保证。</span></div>
       </section>
     </div>
 

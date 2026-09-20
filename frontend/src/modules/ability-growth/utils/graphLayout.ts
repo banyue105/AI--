@@ -1,4 +1,5 @@
 import type { SkillNode, SkillRelation } from '../types'
+import type { KnowledgeTrack } from '../services/knowledgeCatalogService'
 
 export interface NodePosition {
   x: number
@@ -43,6 +44,186 @@ export interface AbilityGraphLayout {
   columns: Array<{ depth: number; x: number; label: string }>
   width: number
   height: number
+}
+
+function normalizedSkillName(value: string) {
+  return value.trim().toLocaleLowerCase().replace(/[\s./_-]+/g, '')
+}
+
+function catalogMatchesBySkill(nodes: SkillNode[], tracks: KnowledgeTrack[]) {
+  const matchesById = new Map<string, Array<{ trackIndex: number; stageIndex: number; itemIndex: number }>>()
+  for (const node of nodes) {
+    const nodeName = normalizedSkillName(node.name)
+    const matches: Array<{ trackIndex: number; stageIndex: number; itemIndex: number }> = []
+    tracks.forEach((track, trackIndex) => {
+      track.stages.forEach((stage, stageIndex) => stage.items.forEach((item, itemIndex) => {
+        const names = [item.name, ...item.aliases].map(normalizedSkillName)
+        if (names.some((name) => name === nodeName || (name.length >= 5 && nodeName.length >= 5 && (name.includes(nodeName) || nodeName.includes(name))))) {
+          matches.push({ trackIndex, stageIndex, itemIndex })
+        }
+      }))
+    })
+    if (matches.length) matchesById.set(node.id, matches)
+  }
+  return matchesById
+}
+
+/**
+ * Manual layout for the personal tree. Every preset direction receives one row;
+ * catalog stages define its left-to-right order. It is called only from the
+ * explicit "重新排布" action.
+ */
+export function layoutPersonalSkillTree(
+  nodes: SkillNode[], relations: SkillRelation[], tracks: KnowledgeTrack[], includeEmptyTracks = false,
+): AbilityGraphLayout {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const nodeOrder = new Map(nodes.map((node, index) => [node.id, index]))
+  const validRelations = relations.filter((relation) => nodeById.has(relation.from) && nodeById.has(relation.to))
+  const catalogMatches = catalogMatchesBySkill(nodes, tracks)
+  const adjacency = new Map(nodes.map((node) => [node.id, new Set<string>()]))
+  validRelations.forEach((relation) => {
+    adjacency.get(relation.from)?.add(relation.to)
+    adjacency.get(relation.to)?.add(relation.from)
+  })
+  const trackByNode = new Map<string, number>()
+  nodes.forEach((node) => {
+    const candidates = [...new Set((catalogMatches.get(node.id) ?? []).map((match) => match.trackIndex))]
+    if (candidates.length === 1) trackByNode.set(node.id, candidates[0])
+  })
+  nodes.forEach((node) => {
+    if (trackByNode.has(node.id)) return
+    const candidates = [...new Set((catalogMatches.get(node.id) ?? []).map((match) => match.trackIndex))]
+    if (!candidates.length) return
+    const scores = candidates.map((candidate) => ({
+      candidate,
+      score: [...(adjacency.get(node.id) ?? [])].reduce((score, neighbor) => {
+        if (trackByNode.get(neighbor) === candidate) return score + 3
+        return score + ((catalogMatches.get(neighbor) ?? []).some((match) => match.trackIndex === candidate) ? 1 : 0)
+      }, 0),
+    }))
+    scores.sort((left, right) => right.score - left.score || left.candidate - right.candidate)
+    trackByNode.set(node.id, scores[0].candidate)
+  })
+  nodes.forEach((node) => {
+    if (trackByNode.has(node.id)) return
+    const neighborTracks = [...(adjacency.get(node.id) ?? [])]
+      .map((neighbor) => trackByNode.get(neighbor)).filter((track): track is number => track !== undefined)
+    if (neighborTracks.length) {
+      const counts = new Map<number, number>()
+      neighborTracks.forEach((track) => counts.set(track, (counts.get(track) ?? 0) + 1))
+      trackByNode.set(node.id, [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0] - right[0])[0][0])
+    }
+  })
+
+  const relatedParents = new Map(nodes.map((node) => [node.id, node.id]))
+  const findRelated = (id: string): string => {
+    const parent = relatedParents.get(id) ?? id
+    if (parent === id) return id
+    const root = findRelated(parent)
+    relatedParents.set(id, root)
+    return root
+  }
+  const unionRelated = (left: string, right: string) => {
+    if (trackByNode.get(left) !== trackByNode.get(right)) return
+    const leftRoot = findRelated(left)
+    const rightRoot = findRelated(right)
+    if (leftRoot !== rightRoot) relatedParents.set(rightRoot, leftRoot)
+  }
+  validRelations.filter((relation) => relation.type === 'related').forEach((relation) => unionRelated(relation.from, relation.to))
+  const groups = new Map<string, string[]>()
+  nodes.forEach((node) => {
+    const root = findRelated(node.id)
+    const group = groups.get(root) ?? []
+    group.push(node.id)
+    groups.set(root, group)
+  })
+  const groupByNode = new Map<string, string>()
+  groups.forEach((members, id) => members.forEach((member) => groupByNode.set(member, id)))
+
+  const parents = new Map<string, Set<string>>([...groups.keys()].map((id) => [id, new Set<string>()]))
+  validRelations.filter((relation) => relation.type === 'prerequisite').forEach((relation) => {
+    const parent = groupByNode.get(relation.from)
+    const child = groupByNode.get(relation.to)
+    if (parent && child && parent !== child) parents.get(child)?.add(parent)
+  })
+  const laneByGroup = new Map<string, number>()
+  const baseDepth = new Map<string, number>()
+  groups.forEach((members, id) => {
+    const lane = trackByNode.get(members[0]) ?? tracks.length
+    laneByGroup.set(id, lane)
+    const stages = members.flatMap((member) => catalogMatches.get(member) ?? [])
+      .filter((match) => match.trackIndex === lane).map((match) => match.stageIndex)
+    baseDepth.set(id, stages.length ? Math.min(...stages) : 0)
+  })
+  const depthByGroup = new Map<string, number>()
+  const visiting = new Set<string>()
+  const getDepth = (id: string): number => {
+    const cached = depthByGroup.get(id)
+    if (cached !== undefined) return cached
+    if (visiting.has(id)) return baseDepth.get(id) ?? 0
+    visiting.add(id)
+    const lane = laneByGroup.get(id)
+    const prerequisiteDepth = Math.max(-1, ...[...(parents.get(id) ?? [])]
+      .filter((parent) => laneByGroup.get(parent) === lane).map((parent) => getDepth(parent))) + 1
+    const depth = Math.max(baseDepth.get(id) ?? 0, prerequisiteDepth)
+    visiting.delete(id)
+    depthByGroup.set(id, depth)
+    return depth
+  }
+  groups.forEach((_, id) => getDepth(id))
+
+  const laidOutNodes: LayoutSkillNode[] = []
+  const lanes: GraphLane[] = []
+  let laneTop = TREE_TOP
+  const laneOrder = [...tracks.map((_, index) => index), tracks.length]
+  laneOrder.forEach((laneId) => {
+    const laneGroups = [...groups.keys()].filter((group) => laneByGroup.get(group) === laneId)
+    if (!laneGroups.length && (!includeEmptyTracks || laneId === tracks.length)) return
+    const laneIndex = lanes.length
+    const componentGroups = laneGroups
+      .sort((left, right) => getDepth(left) - getDepth(right)
+        || Math.min(...(groups.get(left) ?? []).map((id) => nodeOrder.get(id) ?? 0)) - Math.min(...(groups.get(right) ?? []).map((id) => nodeOrder.get(id) ?? 0)))
+    const byDepth = new Map<number, string[]>()
+    componentGroups.forEach((group) => {
+      const depth = getDepth(group)
+      const bucket = byDepth.get(depth) ?? []
+      bucket.push(group)
+      byDepth.set(depth, bucket)
+    })
+    const rows = Math.max(1, ...[...byDepth.values()].map((bucket) => bucket.reduce((count, group) => count + (groups.get(group)?.length ?? 0), 0)))
+    const laneHeight = (rows - 1) * TREE_ROW_GAP + TREE_NODE_HEIGHT
+    const title = laneId < tracks.length ? tracks[laneId].title : '其他技能'
+    lanes.push({ id: laneIndex, label: title, y: laneTop - 26, height: laneHeight + 44 })
+    byDepth.forEach((bucket, depth) => {
+      let row = 0
+      bucket.forEach((group) => (groups.get(group) ?? [])
+        .slice().sort((left, right) => {
+          const leftMatch = (catalogMatches.get(left) ?? []).find((match) => match.trackIndex === laneId)
+          const rightMatch = (catalogMatches.get(right) ?? []).find((match) => match.trackIndex === laneId)
+          return (leftMatch?.itemIndex ?? 999) - (rightMatch?.itemIndex ?? 999)
+            || (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0)
+        })
+        .forEach((id) => {
+          const node = nodeById.get(id)!
+          laidOutNodes.push({ ...node, x: TREE_LEFT + depth * TREE_COLUMN_GAP, y: laneTop + row * TREE_ROW_GAP, layoutDepth: depth, layoutLane: laneIndex })
+          row += 1
+        }))
+    })
+    laneTop += laneHeight + TREE_LANE_GAP
+  })
+  const laidOutById = new Map(laidOutNodes.map((node) => [node.id, node]))
+  const maxDepth = Math.max(0, ...laidOutNodes.map((node) => node.layoutDepth))
+  return {
+    nodes: laidOutNodes,
+    relations: validRelations.map((relation) => ({ ...relation, crossDirection: laidOutById.get(relation.from)?.layoutLane !== laidOutById.get(relation.to)?.layoutLane })),
+    lanes,
+    columns: Array.from({ length: maxDepth + 1 }, (_, depth) => ({
+      depth, x: TREE_LEFT + depth * TREE_COLUMN_GAP,
+      label: depth === 0 ? '基础' : depth === 1 ? '核心能力' : depth === 2 ? '工程交付' : `进阶 ${depth}`,
+    })),
+    width: Math.max(1040, TREE_LEFT + maxDepth * TREE_COLUMN_GAP + NODE_WIDTH + 48),
+    height: Math.max(470, laneTop - TREE_LANE_GAP + 36),
+  }
 }
 
 function overlaps(a: NodePosition, b: NodePosition) {

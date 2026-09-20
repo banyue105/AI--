@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:h2:mem:ican_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1}
+    username: ${TEST_DB_USERNAME:sa}
+    password: ${TEST_DB_PASSWORD:}
+    driver-class-name: ${TEST_DB_DRIVER:org.h2.Driver}
+    hikari:
+      maximum-pool-size: 3

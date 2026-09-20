@@ -2,13 +2,15 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { ArrowDown, ArrowRight, Check, ListTree, Maximize2, Minus, Plus, Trash2, X } from 'lucide-vue-next'
 import type { KnowledgeTrack } from '../services/knowledgeCatalogService'
-import type { SkillNode, SkillRelation } from '../types'
+import type { GrowthPathStep, SkillNode, SkillRelation } from '../types'
 import { layoutAbilityGraph, type AbilityGraphLayout, type LayoutSkillNode } from '../utils/graphLayout'
 
 const props = defineProps<{
   nodes: SkillNode[]
   relations: SkillRelation[]
   tracks: KnowledgeTrack[]
+  path: GrowthPathStep[]
+  currentTargetId: string | null
   selectedId: string | null
 }>()
 
@@ -56,7 +58,6 @@ const draggingPopover = ref(false)
 const popoverVisible = ref(false)
 const previewNodeId = ref<string | null>(null)
 let dragOrigin: { pointerX: number; pointerY: number; x: number; y: number } | null = null
-const basePathLayout = computed(() => layoutAbilityGraph(props.nodes, props.relations))
 const directionOptions = computed(() => props.tracks.map((track) => ({ id: track.id, label: track.shortTitle })))
 const treeModeSliderStyle = computed(() => {
   const index = treeMode.value === 'personal' ? 0 : treeMode.value === 'direction' ? 1 : 2
@@ -73,24 +74,6 @@ watch(directionOptions, (options) => {
 }, { immediate: true })
 
 watch(treeMode, () => clearSelection())
-
-const pathNodeIds = computed(() => {
-  const target = props.nodes.find((node) => node.status === 'target')
-    ?? basePathLayout.value.nodes.reduce<LayoutSkillNode | undefined>((best, node) => !best || node.layoutDepth > best.layoutDepth ? node : best, undefined)
-  if (!target) return new Set<string>()
-  const ids = new Set<string>([target.id])
-  const visit = (id: string) => {
-    props.relations
-      .filter((relation) => relation.type === 'prerequisite' && relation.to === id)
-      .forEach((relation) => {
-        if (ids.has(relation.from)) return
-        ids.add(relation.from)
-        visit(relation.from)
-      })
-  }
-  visit(target.id)
-  return ids
-})
 
 function namesMatch(skill: SkillNode, name: string, aliases: string[]) {
   const personalName = skill.name.toLowerCase()
@@ -111,15 +94,41 @@ function compactPersonalLayout(): DisplayLayout {
     layoutDepth: xValues.indexOf(node.x),
     layoutLane: 0,
   }))
-  const bestIncoming = new Map<string, SkillRelation>()
-  props.relations.filter((relation) => relation.type === 'prerequisite').forEach((relation) => {
-    const current = bestIncoming.get(relation.to)
-    if (!current || relation.confidence > current.confidence) bestIncoming.set(relation.to, relation)
-  })
   const nodeIds = new Set(nodes.map((node) => node.id))
-  const relations = [...bestIncoming.values()]
+  const bestPrerequisite = new Map<string, SkillRelation>()
+  props.relations.filter((relation) => relation.type === 'prerequisite' && nodeIds.has(relation.from) && nodeIds.has(relation.to))
+    .forEach((relation) => {
+      const current = bestPrerequisite.get(relation.to)
+      if (!current || relation.confidence > current.confidence) bestPrerequisite.set(relation.to, relation)
+    })
+  const relatedSeen = new Set<string>()
+  const relatedCandidates = props.relations
     .filter((relation) => nodeIds.has(relation.from) && nodeIds.has(relation.to))
-    .map((relation) => ({ ...relation, crossDirection: false }))
+    .filter((relation) => relation.type === 'related')
+    .filter((relation) => {
+      const key = [relation.from, relation.to].sort().join('|')
+      if (relatedSeen.has(key)) return false
+      relatedSeen.add(key)
+      const from = nodes.find((node) => node.id === relation.from)!
+      const to = nodes.find((node) => node.id === relation.to)!
+      return from.layoutDepth === to.layoutDepth && Math.abs(from.y - to.y) > 1 && Math.abs(from.y - to.y) <= 82
+    })
+  const relatedDegree = new Map<string, number>()
+  const related = relatedCandidates.filter((relation) => {
+    const fromDegree = relatedDegree.get(relation.from) ?? 0
+    const toDegree = relatedDegree.get(relation.to) ?? 0
+    if (fromDegree >= 1 || toDegree >= 1) return false
+    relatedDegree.set(relation.from, fromDegree + 1)
+    relatedDegree.set(relation.to, toDegree + 1)
+    return true
+  })
+  const directPrerequisites = [...bestPrerequisite.values()]
+    .filter((relation) => {
+      const from = nodes.find((node) => node.id === relation.from)!
+      const to = nodes.find((node) => node.id === relation.to)!
+      return Math.abs(to.layoutDepth - from.layoutDepth) <= 1
+    })
+  const relations = [...directPrerequisites, ...related].map((relation) => ({ ...relation, crossDirection: false }))
   return {
     nodes,
     relations,
@@ -192,14 +201,121 @@ function knowledgeDirectionLayout(): DisplayLayout {
   }
 }
 
+function pathTreeLayout(): DisplayLayout {
+  const nodeById = new Map(props.nodes.map((node) => [node.id, node]))
+  const targets = props.nodes.filter((node) => node.status === 'target')
+    .sort((left, right) => Number(right.id === props.currentTargetId) - Number(left.id === props.currentTargetId))
+  const nodes: DisplayNode[] = []
+  const relations: AbilityGraphLayout['relations'] = []
+  const lanes: AbilityGraphLayout['lanes'] = []
+  let laneTop = 58
+  let maxDepth = 0
+
+  targets.forEach((target) => {
+    const useGeneratedPath = target.id === props.currentTargetId && props.path.length > 0
+    const pathIds = new Set<string>([target.id])
+    const pathRelations: SkillRelation[] = []
+
+    if (useGeneratedPath) {
+      props.path.forEach((step) => {
+        if (nodeById.has(step.skillId)) pathIds.add(step.skillId)
+        step.prerequisiteIds.forEach((prerequisiteId) => {
+          if (nodeById.has(prerequisiteId) && nodeById.has(step.skillId)) {
+            pathIds.add(prerequisiteId)
+            pathRelations.push({ from: prerequisiteId, to: step.skillId, type: 'prerequisite', confidence: 1 })
+          }
+        })
+      })
+    }
+
+    const visit = (id: string) => {
+      props.relations
+        .filter((relation) => relation.type === 'prerequisite' && relation.to === id)
+        .forEach((relation) => {
+          pathRelations.push(relation)
+          if (pathIds.has(relation.from)) return
+          pathIds.add(relation.from)
+          visit(relation.from)
+        })
+    }
+    visit(target.id)
+
+    const relationByPair = new Map<string, SkillRelation>()
+    pathRelations
+      .filter((relation) => pathIds.has(relation.from) && pathIds.has(relation.to))
+      .forEach((relation) => relationByPair.set(`${relation.from}:${relation.to}`, relation))
+    const usableRelations = [...relationByPair.values()]
+    if (!usableRelations.length) return
+
+    const depthById = new Map<string, number>()
+    const visiting = new Set<string>()
+    const depthOf = (id: string): number => {
+      const cached = depthById.get(id)
+      if (cached !== undefined) return cached
+      if (visiting.has(id)) return 0
+      visiting.add(id)
+      const prerequisites = usableRelations.filter((relation) => relation.to === id).map((relation) => relation.from)
+      const depth = prerequisites.length ? Math.max(...prerequisites.map(depthOf)) + 1 : 0
+      visiting.delete(id)
+      depthById.set(id, depth)
+      return depth
+    }
+    pathIds.forEach(depthOf)
+    const laneDepth = Math.max(0, ...depthById.values())
+    const depthRows = new Map<number, number>()
+    const orderedIds = [...pathIds].filter((id) => nodeById.has(id)).sort((left, right) => {
+      const depthDifference = (depthById.get(left) ?? 0) - (depthById.get(right) ?? 0)
+      if (depthDifference) return depthDifference
+      return (nodeById.get(left)?.name ?? '').localeCompare(nodeById.get(right)?.name ?? '', 'zh-CN')
+    })
+    orderedIds.forEach((id) => {
+      const original = nodeById.get(id)!
+      const depth = depthById.get(id) ?? 0
+      const row = depthRows.get(depth) ?? 0
+      depthRows.set(depth, row + 1)
+      nodes.push({
+        ...original,
+        id: `path:${target.id}:${id}`,
+        selectId: id,
+        x: 176 + depth * 202,
+        y: laneTop + 42 + row * 66,
+        layoutDepth: depth,
+        layoutLane: lanes.length,
+        meta: id === target.id ? '最终目标' : '前置技能',
+      })
+    })
+    usableRelations.forEach((relation) => relations.push({
+      ...relation,
+      from: `path:${target.id}:${relation.from}`,
+      to: `path:${target.id}:${relation.to}`,
+      crossDirection: false,
+    }))
+    const maxRows = Math.max(1, ...depthRows.values())
+    const laneHeight = 64 + maxRows * 66
+    lanes.push({ id: lanes.length, label: target.name, y: laneTop, height: laneHeight })
+    laneTop += laneHeight + 54
+    maxDepth = Math.max(maxDepth, laneDepth)
+  })
+
+  return {
+    nodes,
+    relations,
+    lanes,
+    columns: Array.from({ length: maxDepth + 1 }, (_, depth) => ({
+      depth,
+      x: 176 + depth * 202,
+      label: depth === maxDepth ? '目标' : depth === 0 ? '基础' : `阶段 ${depth + 1}`,
+    })),
+    width: Math.max(860, 176 + (maxDepth + 1) * 202),
+    height: Math.max(470, laneTop),
+  }
+}
+
 const modeLayout = computed<DisplayLayout>(() => {
   if (treeMode.value === 'personal') return compactPersonalLayout()
   if (treeMode.value === 'direction') return knowledgeDirectionLayout()
-  const nodes = props.nodes.filter((node) => pathNodeIds.value.has(node.id))
-  const relations = props.relations.filter((relation) => pathNodeIds.value.has(relation.from) && pathNodeIds.value.has(relation.to))
-  return layoutAbilityGraph(nodes, relations)
+  return pathTreeLayout()
 })
-
 const renderLayout = computed<RenderLayout>(() => {
   const layout = modeLayout.value
   const showGuides = treeMode.value !== 'personal'
@@ -213,7 +329,7 @@ const renderLayout = computed<RenderLayout>(() => {
   }
   if (orientation.value === 'lr') return horizontal
 
-  const laneIds = treeMode.value === 'direction'
+  const laneIds = treeMode.value !== 'personal'
     ? [...new Set(layout.nodes.map((node) => node.layoutLane))]
     : [0]
   const laneStarts = new Map<number, number>()
@@ -221,7 +337,7 @@ const renderLayout = computed<RenderLayout>(() => {
   let nextX = 48
 
   laneIds.forEach((laneId) => {
-    const laneNodes = treeMode.value === 'direction'
+    const laneNodes = treeMode.value !== 'personal'
       ? layout.nodes.filter((node) => node.layoutLane === laneId)
       : layout.nodes
     const depthCounts = new Map<number, number>()
@@ -235,7 +351,7 @@ const renderLayout = computed<RenderLayout>(() => {
 
   const rowIndexes = new Map<string, number>()
   const verticalNodes = layout.nodes.map((node) => {
-    const laneId = treeMode.value === 'direction' ? node.layoutLane : 0
+    const laneId = treeMode.value !== 'personal' ? node.layoutLane : 0
     const key = `${laneId}:${node.layoutDepth}`
     const row = rowIndexes.get(key) ?? 0
     rowIndexes.set(key, row + 1)
@@ -248,7 +364,7 @@ const renderLayout = computed<RenderLayout>(() => {
   const maxDepth = Math.max(0, ...verticalNodes.map((node) => node.layoutDepth))
   const width = Math.max(720, nextX - 8)
   const height = Math.max(470, 62 + maxDepth * 118 + 112)
-  const lanes = treeMode.value === 'direction'
+  const lanes = treeMode.value !== 'personal'
     ? laneIds.map((laneId, index) => ({
         id: laneId,
         label: layout.lanes.find((lane) => lane.id === laneId)?.label ?? `方向 ${index + 1}`,
@@ -271,25 +387,48 @@ const selectableVisibleIds = computed(() => [...new Set(
 const allVisibleSelected = computed(() =>
   selectableVisibleIds.value.length > 0 && selectableVisibleIds.value.every((id) => batchSelectedIds.value.includes(id)),
 )
-const lineData = computed(() => renderLayout.value.relations.map((relation) => {
-  const from = renderLayout.value.nodes.find((node) => node.id === relation.from)
-  const to = renderLayout.value.nodes.find((node) => node.id === relation.to)
+const lineData = computed(() => renderLayout.value.relations.map((relation, relationIndex) => {
+  // Draw persisted prerequisite -> dependent relations from foundations toward goals.
+  const sourceId = relation.from
+  const targetId = relation.to
+  const from = renderLayout.value.nodes.find((node) => node.id === sourceId)
+  const to = renderLayout.value.nodes.find((node) => node.id === targetId)
   if (!from || !to) return null
+  const outgoing = renderLayout.value.relations.filter((edge) => edge.from === sourceId)
+  const incoming = renderLayout.value.relations.filter((edge) => edge.to === targetId)
+  const sourceIndex = Math.max(0, outgoing.findIndex((edge) => edge === relation))
+  const targetIndex = Math.max(0, incoming.findIndex((edge) => edge === relation))
+  const sourcePort = 15 + ((sourceIndex + 1) * 24) / (outgoing.length + 1)
+  const targetPort = 15 + ((targetIndex + 1) * 24) / (incoming.length + 1)
+  if (relation.type === 'related' && Math.abs(from.x - to.x) < 20) {
+    const startsAbove = from.y <= to.y
+    const x = from.x + 72
+    const y1 = startsAbove ? from.y + 54 : from.y
+    const y2 = startsAbove ? to.y : to.y + 54
+    const controlY = (y1 + y2) / 2
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x} ${y1} C ${x} ${controlY}, ${x} ${controlY}, ${x} ${y2}` }
+  }
   if (orientation.value === 'tb') {
-    const x1 = from.x + 60
+    const x1 = from.x + sourcePort + 4
     const y1 = from.y + 48
-    const x2 = to.x + 60
+    const x2 = to.x + targetPort + 4
     const y2 = to.y
     const controlY = (y1 + y2) / 2
-    return { ...relation, path: `M ${x1} ${y1} C ${x1} ${controlY}, ${x2} ${controlY}, ${x2} ${y2}` }
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} C ${x1} ${controlY}, ${x2} ${controlY}, ${x2} ${y2}` }
   }
   const sameColumn = Math.abs(to.x - from.x) < 20
-  const x1 = sameColumn ? from.x + 144 : to.x >= from.x ? from.x + 144 : from.x
-  const y1 = from.y + 27
-  const x2 = sameColumn ? to.x + 144 : to.x >= from.x ? to.x : to.x + 144
-  const y2 = to.y + 27
-  const controlX = sameColumn ? x1 + 38 : (x1 + x2) / 2
-  return { ...relation, path: `M ${x1} ${y1} C ${controlX} ${y1}, ${controlX} ${y2}, ${x2} ${y2}` }
+  const goesRight = to.x >= from.x
+  const x1 = sameColumn ? from.x + 144 : goesRight ? from.x + 144 : from.x
+  const y1 = from.y + 27 + (sourcePort - 27)
+  const x2 = sameColumn ? to.x + 144 : goesRight ? to.x : to.x + 144
+  const y2 = to.y + 27 + (targetPort - 27)
+  if (sameColumn) {
+    const channelX = from.x + 156 + (relationIndex % 3) * 8
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} H ${channelX} V ${y2} H ${x2}` }
+  }
+  const gap = Math.abs(x2 - x1)
+  const channelX = goesRight ? x1 + Math.max(20, Math.min(72, gap / 2)) : x1 - Math.max(20, Math.min(72, gap / 2))
+  return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} H ${channelX} V ${y2} H ${x2}` }
 }).filter((line) => line !== null))
 
 function toggleTrack(id: string) {
@@ -299,7 +438,7 @@ function toggleTrack(id: string) {
 }
 
 function personalNodeId(node: DisplayNode) {
-  if (treeMode.value === 'direction') return node.selectId ?? null
+  if (node.selectId) return node.selectId
   return props.nodes.some((item) => item.id === node.id) ? node.id : null
 }
 
@@ -508,7 +647,7 @@ function setScale(value: number) {
           </label>
         </TransitionGroup>
       </div>
-      <div v-else :key="treeMode" class="view-description">{{ treeMode === 'personal' ? '全部技能积累 · 仅显示主要前置关系' : '目标能力的前置学习链' }}</div>
+      <div v-else :key="treeMode" class="view-description">{{ treeMode === 'personal' ? '全部技能积累' : '目标能力的前置学习链' }}</div>
       </Transition>
       <div class="legend" aria-label="节点状态图例">
         <span><i class="dot mastered" />已掌握</span>
@@ -543,13 +682,13 @@ function setScale(value: number) {
     </div>
 
     <div v-else key="graph" class="graph-viewport" @click.self="clearSelection">
-      <div v-if="!renderLayout.nodes.length" class="graph-empty">至少选择一个方向</div>
+      <div v-if="!renderLayout.nodes.length" class="graph-empty">{{ treeMode === 'path' ? '当前目标暂无可展示的前置路径' : '至少选择一个方向' }}</div>
       <div v-else class="graph-canvas" @click.self="clearSelection" :class="[`orientation-${orientation}`, `mode-${treeMode}`]" :style="{ transform: `scale(${scale})`, width: `${renderLayout.width}px`, height: `${renderLayout.height}px` }">
         <div class="graph-columns" aria-hidden="true"><span v-for="column in renderLayout.columns" :key="column.depth" :style="{ left: `${column.x}px`, top: `${column.y}px` }">{{ column.label }}</span></div>
         <div v-for="(lane, laneIndex) in renderLayout.lanes" :key="lane.id" class="graph-lane" :style="{ left: `${lane.x}px`, top: `${lane.y}px`, width: `${lane.width}px`, height: `${lane.height}px`, animationDelay: `${laneIndex * 55}ms` }" aria-hidden="true"><span>{{ lane.label }}</span></div>
         <svg class="edges" :width="renderLayout.width" :height="renderLayout.height" :viewBox="`0 0 ${renderLayout.width} ${renderLayout.height}`" aria-hidden="true">
-          <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
-          <path v-for="(line, lineIndex) in lineData" :key="`${line.from}-${line.to}`" :d="line.path" :class="[line.type, { 'cross-direction': line.crossDirection }]" :style="{ animationDelay: `${lineIndex * 24}ms` }" marker-end="url(#arrow)" />
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
+          <path v-for="(line, lineIndex) in lineData" :key="`${line.from}-${line.to}`" :d="line.path" :class="[line.type, { 'cross-direction': line.crossDirection }]" :style="{ animationDelay: `${lineIndex * 24}ms` }" :marker-end="line.type === 'prerequisite' ? 'url(#arrow)' : undefined" />
         </svg>
         <button v-for="(node, nodeIndex) in renderLayout.nodes" :key="node.id" type="button" class="skill-node" :class="[node.status, { selected: !batchMode && popoverVisible && (selectedId === (node.selectId ?? node.id) || previewNodeId === node.id), 'batch-selectable': batchMode && personalNodeId(node), 'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''), 'catalog-node': node.catalogNode, 'catalog-previewable': node.catalogNode && !node.selectId }]" :style="{ left: `${node.x}px`, top: `${node.y}px`, animationDelay: `${nodeIndex * 28}ms` }" @click.stop="selectNode(node)">
           <i v-if="batchMode && personalNodeId(node)" class="batch-check" aria-hidden="true"><Check v-if="batchSelectedIds.includes(personalNodeId(node) ?? '')" :size="12" /></i>
