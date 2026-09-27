@@ -25,7 +25,7 @@ const fallback: HomeData = {
       title: '决策沙盒',
       description: '改变现实条件，比较不同选择的代价',
       route: '/decision',
-      status: 'prototype',
+      status: 'ready',
       updatedAt: '今天 18:40',
     },
     {

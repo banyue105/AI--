@@ -1,0 +1,20 @@
+server:
+  port: ${SERVER_PORT:8000}
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/ican_assistant?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:ican}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+app:
+  cors-origins: ${APP_CORS_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  seed-demo: ${APP_SEED_DEMO:true}
+  ai:
+    api-key: ${AI_API_KEY:}
+    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    model: ${AI_MODEL:gpt-4o-mini}

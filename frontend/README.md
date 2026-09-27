@@ -64,10 +64,10 @@ AI 响应必须符合 `KnowledgeTrack`：包含方向基本信息、`stages` 阶
 
 ## 本阶段未完成
 
-- Spring Boot、JPA、MySQL 与 Flyway 持久化。
+- 模块一的 Spring Boot、JPA、MySQL 与 Flyway 持久化（模块二已单独实现其后端）。
 - 新增/编辑前置关系的页面表单。
 - 新增实践证据的页面表单。
 - 前端自动化测试；本阶段完成了生产构建和桌面/360px 浏览器手动验收。
-- 模块二真实业务页面。当前仅保留 `/decision` 集成路由，不包含模块二业务逻辑。
+- 模块二的实现与运行说明请参阅 [决策沙盒 README](src/modules/decision-sandbox/README.md)。
 
 localStorage 仅用于后端尚未合并时的演示降级。接入 Spring Boot 后，用户和能力数据应以后端为唯一事实来源。
