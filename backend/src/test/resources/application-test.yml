@@ -6,3 +6,5 @@ spring:
     driver-class-name: ${TEST_DB_DRIVER:org.h2.Driver}
     hikari:
       maximum-pool-size: 3
+app:
+  seed-demo: false
