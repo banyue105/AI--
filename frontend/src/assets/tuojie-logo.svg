@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 168 44" role="img" aria-labelledby="title desc">
+  <title id="title">拓界团队 Logo</title>
+  <desc id="desc">由成长路径节点构成的拓界品牌标志</desc>
+  <rect x="1" y="1" width="42" height="42" rx="8" fill="#eff6ff" stroke="#bfdbfe"/>
+  <path d="M11 30V21c0-4 3-7 7-7h11" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round"/>
+  <path d="M21 30V25c0-4 3-7 7-7h5" fill="none" stroke="#0f766e" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="11" cy="30" r="3" fill="#2563eb"/><circle cx="29" cy="14" r="3" fill="#2563eb"/>
+  <circle cx="33" cy="18" r="3" fill="#0f766e"/><circle cx="21" cy="30" r="3" fill="#0f766e"/>
+  <text x="55" y="29" fill="#172033" font-family="Microsoft YaHei, PingFang SC, sans-serif" font-size="22" font-weight="700">拓界</text>
+  <text x="109" y="27" fill="#667085" font-family="Arial, sans-serif" font-size="10" font-weight="700">TEAM</text>
+</svg>

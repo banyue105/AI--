@@ -55,7 +55,7 @@
 
 - Java 21 LTS；
 - Spring Boot 3.5.x + Spring Web + Bean Validation；
-- Spring Data JPA + MySQL 8.4 LTS；
+- MyBatis + MySQL 8.4 LTS；
 - Flyway 管理数据库迁移；
 - Maven 管理依赖和构建；
 - JUnit 5 + Spring Boot Test 做接口和服务测试；
@@ -186,6 +186,15 @@ AI 调用必须经过 `backend/src/main/java/com/ican/assistant/core/ai/` 的适
 
 开发阶段允许使用 mock AI 响应，不能因为没有 API Key 导致页面无法演示。mock 必须位于 service/adapter 层，不要把 mock JSON 散落到 Vue 组件中。
 
+### 当前实现补充（必须遵守）
+
+- 实际后端持久层是 **MyBatis**（Mapper + Service），不是 JPA；数据库迁移仍由 Flyway 管理。
+- 当前模块 API 的 service 位于 `frontend/src/modules/ability-growth/services/`；新增请求应复用其用户头 `X-User-Id`，为后续登录后的用户隔离预留接口。
+- AI 仅在既有工作流中出现：一句话更新能力、生成目标技术栈、可解释路径重生成和新增技能补全。不得再新增独立的 AI 功能页或面板。
+- 预置目录 `backend/src/main/resources/knowledge/catalog.json` 是技能方向和知识点的唯一事实来源。预置目录 `backend/src/main/resources/knowledge/catalog.json` 是技能方向和知识点的唯一事实来源。目前目录维护 10 个方向，但界面默认只展示 `frontend`、`backend`、`network` 三个方向，其余方向必须由用户通过 AI 匹配或明确操作加入。模型只能从目录中做语义选择，不得新建方向、技能名、阶段或 ID；服务端必须校验并映射为目录内容。
+- AI 输出一律是待确认建议，不得绕过用户确认直接写入图谱。无模型密钥、超时或 JSON 不合法时回退到可预测的本地选择规则。
+- 模型配置只放在 `backend/.env`：`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 与 `AI_DISABLE_THINKING=true`。不得将密钥写入浏览器、源码、文档示例或提交记录。
+
 ## 手机端交互要求
 
 - 首屏优先显示当前用户、核心状态和模块入口，不做营销型落地页；
@@ -233,3 +242,11 @@ feature/module3-shell
 - 有至少一个从输入到可视化结果的完整流程；
 - 不依赖其他模块内部实现；
 - 能在 5 分钟总演示中被清楚展示。
+
+## 能力成长实现基线（新增功能必须遵守）
+
+- 技能关系数据统一使用 `from=前置节点`、`to=后续节点`；图谱视觉层如果展示“子节点指向父节点”，必须在绘制层反转端点，不能修改持久化语义。
+- `prerequisite` 使用带箭头实线，箭头指向前置节点；`related` 使用无箭头虚线。新增关系必须去重、防止自环，并保持节点布局从基础到进阶的左到右顺序。
+- 路径技能树必须保留当前目标涉及的预置方向分组和阶段标签；个人技能树只展示用户已有技能。
+- 一句话更新能力和目标方向生成都先返回结构化候选，用户确认后才写入；预置目录技能要支持一键加入并沿用目录 ID、描述和别名。
+- AI 不可用、超时、返回非法 JSON 或无法匹配时，页面显示明确错误/未匹配状态，不能静默跳转到任意默认方向。

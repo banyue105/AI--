@@ -165,8 +165,10 @@ export const knowledgeCatalogService = {
     try {
       const controller = new AbortController()
       const timeout = window.setTimeout(() => controller.abort(), 900)
-      const response = await fetch('/api/v1/knowledge/catalog', { signal: controller.signal })
-      window.clearTimeout(timeout)
+      const response = await fetch('/api/v1/knowledge/catalog', {
+        signal: controller.signal,
+        headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
+      })
       if (!response.ok) throw new Error('Knowledge catalog unavailable')
       return await response.json()
     } catch {
@@ -175,25 +177,78 @@ export const knowledgeCatalogService = {
   },
 
   async generateTrack(query: string, personalSkills: SkillNode[]): Promise<KnowledgeTrack> {
+    const normalizedQuery = query.trim()
+    if (normalizedQuery.length < 2 || /^[\\d\\s]+$/.test(normalizedQuery)) throw new Error("未查询到有效目标")
     try {
       const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 5000)
-      const response = await fetch('/api/v1/knowledge/generate', {
+      const timeout = window.setTimeout(() => controller.abort(), 35000)
+      const response = await fetch('/api/v1/ai/tech-stack', {
         method: 'POST',
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          currentSkills: personalSkills.map(({ name, level, status }) => ({ name, level, status })),
-        }),
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
+        body: JSON.stringify({ statement: query }),
       })
       window.clearTimeout(timeout)
-      if (!response.ok) throw new Error('Knowledge generation unavailable')
-      const result: unknown = await response.json()
-      if (!isKnowledgeTrack(result)) throw new Error('Invalid knowledge track response')
-      return { ...result, source: 'ai' }
+      if (response.ok) {
+        const result = await response.json() as {
+          direction?: string
+          stages?: Array<{
+            name?: string
+            description?: string
+            skills?: Array<{ name?: string; proficiency?: number; description?: string }>
+          }>
+        }
+        if (result.direction && Array.isArray(result.stages) && result.stages.length) {
+          const title = result.direction.trim()
+          const canonicalTrack = fallbackCatalog.find((track) => track.title === title)
+          if (canonicalTrack) return structuredClone(canonicalTrack)
+          const canonicalIds: Record<string, string> = {
+            '数据分析师': 'data-analyst',
+            '机器学习工程师': 'ml-engineer',
+            'DevOps 工程师': 'devops',
+            '移动端工程师': 'mobile',
+            '数据工程师': 'data-engineer',
+            '产品经理': 'product-manager',
+            '网络安全工程师': 'cybersecurity',
+          }
+          const id = canonicalIds[title]
+          if (!id) throw new Error('Non-canonical AI direction response')
+          return {
+            id,
+            title,
+            shortTitle: title.slice(0, 8),
+            description: `预置方向“${title}”的结构化学习路线。`,
+            outcome: '完成该方向的可验证实践项目',
+            source: 'catalog',
+            stages: result.stages.filter((stage) => stage.name && Array.isArray(stage.skills)).map((stage, stageIndex) => ({
+              id: `${id}-stage-${stageIndex}`,
+              title: stage.name as string,
+              description: stage.description || '预置方向阶段能力。',
+              items: (stage.skills ?? []).filter((skill) => skill.name).map((skill, skillIndex) => ({
+                id: `${id}-${stageIndex}-${skillIndex}`,
+                name: skill.name as string,
+                description: skill.description || '预置目录技能。',
+                aliases: [],
+                priority: (skill.proficiency ?? 1) >= 2 ? 'required' as const : 'recommended' as const,
+              })),
+            })),
+          }
+        }
+      }
+      const legacyResponse = await fetch('/api/v1/knowledge/generate', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
+        body: JSON.stringify({ query, currentSkills: personalSkills.map(({ name, level, status }) => ({ name, level, status })) }),
+      })
+      if (!legacyResponse.ok) throw new Error('Knowledge generation unavailable')
+      const legacyResult: unknown = await legacyResponse.json()
+      if (!isKnowledgeTrack(legacyResult)) throw new Error('Invalid knowledge track response')
+      const canonicalTrack = fallbackCatalog.find((track) => track.id === legacyResult.id)
+      if (!canonicalTrack) throw new Error('Non-canonical knowledge track response')
+      return structuredClone(canonicalTrack)
     } catch {
-      return createMockTrack(query)
+      return structuredClone(selectFallbackTrack(query))
     }
   },
 }
@@ -227,6 +282,11 @@ function isKnowledgeTrack(value: unknown): value is KnowledgeTrack {
   )
 }
 
+function selectFallbackTrack(_query: string): KnowledgeTrack {
+  throw new Error('无法匹配预置方向')
+}
+
+/* Legacy generator retained below temporarily for fixture compatibility; it is no longer called. */
 function createMockTrack(query: string): KnowledgeTrack {
   const title = query.trim().replace(/[？?。！!]/g, '').slice(0, 24) || '自定义方向'
   const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\u4e00-\u9fa5-]/g, '')
