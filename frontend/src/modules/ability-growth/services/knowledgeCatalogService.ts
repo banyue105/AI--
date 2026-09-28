@@ -1,4 +1,5 @@
 import type { SkillNode } from '../types'
+import { ApiHttpError, apiRequest, canUseOfflineDemo } from '../../../core/api/apiClient'
 
 export type KnowledgeTrackId = string
 export type StackStageId = string
@@ -163,15 +164,13 @@ const fallbackCatalog: KnowledgeTrack[] = [
 export const knowledgeCatalogService = {
   async getCatalog(): Promise<KnowledgeTrack[]> {
     try {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 900)
-      const response = await fetch('/api/v1/knowledge/catalog', {
-        signal: controller.signal,
+      const catalog = await apiRequest<unknown>('/knowledge/catalog', {
         headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
       })
-      if (!response.ok) throw new Error('Knowledge catalog unavailable')
-      return await response.json()
-    } catch {
+      if (!Array.isArray(catalog) || !catalog.every(isKnowledgeTrack)) throw new Error('后端返回的知识目录格式无效。')
+      return catalog
+    } catch (cause) {
+      if (!canUseOfflineDemo(cause)) throw cause
       return structuredClone(fallbackCatalog)
     }
   },
@@ -180,17 +179,7 @@ export const knowledgeCatalogService = {
     const normalizedQuery = query.trim()
     if (normalizedQuery.length < 2 || /^[\\d\\s]+$/.test(normalizedQuery)) throw new Error("未查询到有效目标")
     try {
-      const controller = new AbortController()
-      const timeout = window.setTimeout(() => controller.abort(), 35000)
-      const response = await fetch('/api/v1/ai/tech-stack', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
-        body: JSON.stringify({ statement: query }),
-      })
-      window.clearTimeout(timeout)
-      if (response.ok) {
-        const result = await response.json() as {
+      type TechStackResponse = {
           direction?: string
           stages?: Array<{
             name?: string
@@ -198,6 +187,17 @@ export const knowledgeCatalogService = {
             skills?: Array<{ name?: string; proficiency?: number; description?: string }>
           }>
         }
+      let result: TechStackResponse | null = null
+      try {
+        result = await apiRequest<TechStackResponse>('/ai/tech-stack', {
+          method: 'POST',
+          headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
+          body: JSON.stringify({ statement: query }),
+        }, 35000)
+      } catch (cause) {
+        if (!(cause instanceof ApiHttpError && cause.status === 404)) throw cause
+      }
+      if (result) {
         if (result.direction && Array.isArray(result.stages) && result.stages.length) {
           const title = result.direction.trim()
           const canonicalTrack = fallbackCatalog.find((track) => track.title === title)
@@ -235,20 +235,18 @@ export const knowledgeCatalogService = {
           }
         }
       }
-      const legacyResponse = await fetch('/api/v1/knowledge/generate', {
+      const legacyResult: unknown = await apiRequest('/knowledge/generate', {
         method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
+        headers: { 'X-User-Id': localStorage.getItem('ican:user-id') || 'demo-user' },
         body: JSON.stringify({ query, currentSkills: personalSkills.map(({ name, level, status }) => ({ name, level, status })) }),
-      })
-      if (!legacyResponse.ok) throw new Error('Knowledge generation unavailable')
-      const legacyResult: unknown = await legacyResponse.json()
+      }, 35000)
       if (!isKnowledgeTrack(legacyResult)) throw new Error('Invalid knowledge track response')
       const canonicalTrack = fallbackCatalog.find((track) => track.id === legacyResult.id)
       if (!canonicalTrack) throw new Error('Non-canonical knowledge track response')
       return structuredClone(canonicalTrack)
-    } catch {
-      return structuredClone(selectFallbackTrack(query))
+    } catch (cause) {
+      if (!canUseOfflineDemo(cause)) throw cause
+      return createMockTrack(query)
     }
   },
 }
@@ -282,11 +280,6 @@ function isKnowledgeTrack(value: unknown): value is KnowledgeTrack {
   )
 }
 
-function selectFallbackTrack(_query: string): KnowledgeTrack {
-  throw new Error('无法匹配预置方向')
-}
-
-/* Legacy generator retained below temporarily for fixture compatibility; it is no longer called. */
 function createMockTrack(query: string): KnowledgeTrack {
   const title = query.trim().replace(/[？?。！!]/g, '').slice(0, 24) || '自定义方向'
   const slug = title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\u4e00-\u9fa5-]/g, '')

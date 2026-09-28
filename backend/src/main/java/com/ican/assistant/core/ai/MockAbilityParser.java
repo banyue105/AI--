@@ -113,6 +113,7 @@ public class MockAbilityParser implements AbilityParser {
                 detected.put(skill.id(), new SkillNode("parsed-" + skill.id(), skill.name(),
                         "由本地规则从输入提取，保存前请确认等级与证据。", assessment.level(), assessment.status(),
                         List.of(), 120.0 + index * 190, 360.0));
+                consumedUntil = mention.end();
             }
         }
         return new ParseResult(detected.isEmpty()

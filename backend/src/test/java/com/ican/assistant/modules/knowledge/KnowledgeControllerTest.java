@@ -60,23 +60,18 @@ class KnowledgeControllerTest {
     }
 
     @Test
-    void unmatchedDirectionFallsBackToExistingBackendTrack() throws Exception {
-        KnowledgeTrack track = objectMapper.readValue(generate("用户体验设计"), KnowledgeTrack.class);
-        assertThat(track.id()).isEqualTo("backend");
-        assertThat(track.stages()).hasSize(3).allSatisfy(stage -> {
-            assertThat(stage.items()).isNotEmpty();
-            assertThat(stage.items()).allSatisfy(item -> {
-                assertThat(item.id()).isNotBlank();
-                assertThat(item.priority()).isIn("required", "recommended");
-            });
-        });
+    void unmatchedDirectionRequiresAListedTrack() throws Exception {
+        mvc.perform(post("/api/v1/knowledge/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("query", "用户体验设计", "currentSkills", List.of()))))
+                .andExpect(status().isUnprocessableEntity());
+        assertThat(mapper.findAllJson()).isEmpty();
     }
 
     @Test
     void invalidAndOversizedRequestsDoNotPersistTracks() throws Exception {
         List<String> invalidRequests = List.of(
                 "{\"query\":\" \",\"currentSkills\":[]}",
-                "{\"query\":\"!!!\",\"currentSkills\":[]}",
                 "{\"query\":\"Java\"}",
                 "{\"query\":\"Java\",\"currentSkills\":[null]}",
                 "{\"query\":\"Java\",\"currentSkills\":[{\"name\":\"SQL\",\"level\":5,\"status\":\"developing\"}]}",
@@ -87,6 +82,10 @@ class KnowledgeControllerTest {
                             .contentType(MediaType.APPLICATION_JSON).content(request))
                     .andExpect(status().isBadRequest());
         }
+        mvc.perform(post("/api/v1/knowledge/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"query\":\"!!!\",\"currentSkills\":[]}"))
+                .andExpect(status().isUnprocessableEntity());
         assertThat(mapper.findAllJson()).isEmpty();
     }
 

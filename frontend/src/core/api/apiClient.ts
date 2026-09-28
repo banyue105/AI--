@@ -20,9 +20,9 @@ export function canUseOfflineDemo(cause: unknown): boolean {
   return cause instanceof ApiUnavailableError && !serverConnected
 }
 
-export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiRequest<T>(path: string, init?: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs)
   try {
     let response: Response
     let body: string
@@ -53,8 +53,12 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
       const message = error?.error?.message ?? error?.message ?? error?.detail
       throw new ApiHttpError(response.status, typeof message === 'string' ? message : `请求失败（HTTP ${response.status}），请稍后重试。`)
     }
-    serverConnected = true
+    // A different local service may occupy the configured backend port.
+    if (!response.headers.get('Content-Type')?.toLowerCase().includes('application/json')) {
+      throw new ApiUnavailableError()
+    }
     if (data === null) throw new Error('后端返回的数据格式无效，请稍后重试。')
+    serverConnected = true
     return data as T
   } finally {
     globalThis.clearTimeout(timeout)

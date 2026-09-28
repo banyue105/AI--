@@ -294,11 +294,11 @@ async function submitNode() {
         existingNodes,
       )
     : []
-  await store.saveNode(node)
+  if (!(await store.saveNode(node))) return
   const savedNodeId = store.selectedId ?? node.id
   if (isNew && aiQuestions.length) skillAssessmentService.saveGeneratedQuestions(savedNodeId, aiQuestions)
   const normalizedAiRelations = aiRelations.map((relation) => ({ ...relation, to: savedNodeId }))
-  await store.saveRelations([...relations, ...normalizedAiRelations])
+  if (!(await store.saveRelations([...relations, ...normalizedAiRelations]))) return
   catalogSelection.value = null
   showEditor.value = false
 }
@@ -372,10 +372,11 @@ async function savePracticeRecord() {
   if (!store.selectedNode || !practiceForm.title.trim()) return
   practiceSaving.value = true
   try {
-    await store.addEvidence(store.selectedNode.id, {
+    const saved = await store.addEvidence(store.selectedNode.id, {
       title: practiceForm.title,
       note: practiceForm.note,
     })
+    if (!saved) return
     practiceForm.title = ''
     practiceForm.note = ''
     showPracticeForm.value = false
@@ -425,7 +426,7 @@ onMounted(async () => {
           <span class="page-icon"><Network :size="20" /></span>
           <div><strong>能力成长</strong><small>结构化成长工作台</small></div>
         </div>
-        <div class="sync-state"><span /> 已保存</div>
+        <div class="sync-state"><span /> {{ store.error ? '未保存' : '已保存' }}</div>
         <button class="primary-button compact" type="button" @click="openNewNode"><Plus :size="17" /> 新增能力</button>
       </div>
     </header>
@@ -434,7 +435,7 @@ onMounted(async () => {
       <span class="spinner" />
       <p>正在构建能力图谱…</p>
     </div>
-    <div v-else-if="store.error" class="state-panel error-state page-loading">
+    <div v-else-if="store.error && !store.graph" class="state-panel error-state page-loading">
       <CircleAlert :size="28" />
       <p>{{ store.error }}</p>
       <button class="secondary-button" type="button" @click="store.load">重新加载</button>
@@ -778,6 +779,7 @@ onMounted(async () => {
     <Transition name="toast">
       <div v-if="store.notice" class="toast-message"><CheckCircle2 :size="18" /> {{ store.notice }}</div>
     </Transition>
+    <div v-if="store.error && store.graph" class="toast-message error-state" role="alert"><CircleAlert :size="18" /> {{ store.error }}</div>
 
     <Teleport to="body">
       <Transition name="editor-modal">

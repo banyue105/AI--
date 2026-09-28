@@ -1,8 +1,10 @@
 package com.ican.assistant.common;
 
+import com.ican.assistant.modules.decisionsandbox.DecisionCalculationException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -66,6 +68,21 @@ public class ApiExceptionHandler {
             default -> status.name();
         };
         return response(status, code, exception.getReason() == null ? status.getReasonPhrase() : exception.getReason(), Map.of());
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ErrorResponse> invalidArgument(IllegalArgumentException exception) {
+        return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    ResponseEntity<ErrorResponse> missingEntity(NoSuchElementException exception) {
+        return response(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage(), Map.of());
+    }
+
+    @ExceptionHandler(DecisionCalculationException.class)
+    ResponseEntity<ErrorResponse> decisionCalculation(DecisionCalculationException exception) {
+        return response(HttpStatus.UNPROCESSABLE_ENTITY, "CALCULATION_FAILED", exception.getMessage(), Map.of());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

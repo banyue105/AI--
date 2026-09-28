@@ -1,4 +1,5 @@
 import aiService from './aiService'
+import { apiRequest, canUseOfflineDemo } from '../../../core/api/apiClient'
 import type {
   AbilityGraphData,
   Evidence,
@@ -76,37 +77,42 @@ function storageKey() {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  try {
-    const response = await fetch(`/api/v1${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'X-User-Id': currentUserId(), ...init?.headers },
-    })
-    if (!response.ok) throw new Error(`API ${response.status}`)
-    return await response.json()
-  } finally {
-    window.clearTimeout(timeout)
+  return apiRequest<T>(path, {
+    ...init,
+    headers: { 'X-User-Id': currentUserId(), ...init?.headers },
+  }, REQUEST_TIMEOUT_MS)
+}
+
+function demoGraphOrThrow(cause: unknown): AbilityGraphData {
+  if (!canUseOfflineDemo(cause)) throw cause
+  const graph = readLocal()
+  if (graph.source === 'api') throw cause
+  return graph
+}
+
+function useServerGraph(data: AbilityGraphData): AbilityGraphData {
+  if (!Array.isArray(data.nodes) || !Array.isArray(data.relations) || !Array.isArray(data.evidence) || !data.goal) {
+    throw new Error('后端返回的能力图谱格式无效，请稍后重试。')
   }
+  const graph = { ...data, source: 'api' as const }
+  try { writeLocal(graph) } catch { /* The server save remains authoritative. */ }
+  return graph
 }
 
 export const abilityService = {
   async getGraph(): Promise<AbilityGraphData> {
     try {
-      return await request<AbilityGraphData>('/ability/graph')
-    } catch {
-      return readLocal()
+      return useServerGraph(await request<AbilityGraphData>('/ability/graph'))
+    } catch (cause) {
+      return demoGraphOrThrow(cause)
     }
   },
 
   async saveNode(node: SkillNode): Promise<AbilityGraphData> {
     try {
-      const remote = await request<AbilityGraphData>('/ability/skills', { method: 'POST', body: JSON.stringify(node) })
-      writeLocal(remote)
-      return remote
-    } catch {
-      // The local fallback remains fully usable while the backend is unavailable.
+      return useServerGraph(await request<AbilityGraphData>('/ability/skills', { method: 'POST', body: JSON.stringify(node) }))
+    } catch (cause) {
+      demoGraphOrThrow(cause)
     }
     const graph = readLocal()
     const index = graph.nodes.findIndex((item) => item.id === node.id || item.name.toLowerCase() === node.name.toLowerCase())
@@ -119,9 +125,16 @@ export const abilityService = {
 
   async deleteNodes(nodeIds: string[]): Promise<AbilityGraphData> {
     const ids = [...new Set(nodeIds)]
-    await Promise.allSettled(ids.map((nodeId) =>
-      request(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' }),
-    ))
+    if (!ids.length) return this.getGraph()
+    try {
+      let remote: AbilityGraphData | null = null
+      for (const nodeId of ids) {
+        remote = await request<AbilityGraphData>(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
+      }
+      return useServerGraph(remote!)
+    } catch (cause) {
+      demoGraphOrThrow(cause)
+    }
     const idSet = new Set(ids)
     const graph = readLocal()
     graph.nodes = graph.nodes.filter((node) => !idSet.has(node.id))
@@ -132,11 +145,9 @@ export const abilityService = {
   },
   async deleteNode(nodeId: string): Promise<AbilityGraphData> {
     try {
-      const remote = await request<AbilityGraphData>(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' })
-      writeLocal(remote)
-      return remote
-    } catch {
-      // The local fallback remains fully usable while the backend is unavailable.
+      return useServerGraph(await request<AbilityGraphData>(`/ability/skills/${encodeURIComponent(nodeId)}`, { method: 'DELETE' }))
+    } catch (cause) {
+      demoGraphOrThrow(cause)
     }
     const graph = readLocal()
     graph.nodes = graph.nodes.filter((node) => node.id !== nodeId)
@@ -150,15 +161,15 @@ export const abilityService = {
       id: `evidence-${Date.now()}`,
       title: input.title.trim(),
       note: input.note.trim(),
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString().slice(0, 10),
     }
     try {
-      await request(`/ability/skills/${encodeURIComponent(skillId)}/evidence`, {
+      return useServerGraph(await request<AbilityGraphData>(`/ability/skills/${encodeURIComponent(skillId)}/evidence`, {
         method: 'POST',
         body: JSON.stringify(evidence),
-      })
-    } catch {
-      // Keep practice records usable locally until the backend evidence API is available.
+      }))
+    } catch (cause) {
+      demoGraphOrThrow(cause)
     }
     const graph = readLocal()
     const node = graph.nodes.find((item) => item.id === skillId)
@@ -172,11 +183,9 @@ export const abilityService = {
 
   async addRelation(relation: SkillRelation): Promise<AbilityGraphData> {
     try {
-      const remote = await request<AbilityGraphData>('/ability/relations', { method: 'POST', body: JSON.stringify(relation) })
-      writeLocal(remote)
-      return remote
-    } catch {
-      // Keep the relationship available in the local demo when the backend is unavailable.
+      return useServerGraph(await request<AbilityGraphData>('/ability/relations', { method: 'POST', body: JSON.stringify(relation) }))
+    } catch (cause) {
+      demoGraphOrThrow(cause)
     }
     const graph = readLocal()
     if (!graph.relations.some(
@@ -192,7 +201,8 @@ export const abilityService = {
   async parseInput(input: string, existingNodes: SkillNode[] = [], existingRelations: SkillRelation[] = []): Promise<ParseResult> {
     try {
       return await request<ParseResult>('/ability/parse', { method: 'POST', body: JSON.stringify({ input, existingNodes, existingRelations }) })
-    } catch {
+    } catch (cause) {
+      demoGraphOrThrow(cause)
       const text = input.toLowerCase()
       const candidates: Array<{ key: string; name: string; level: SkillLevel; status: SkillStatus }> = [
         { key: 'python', name: 'Python', level: 2, status: 'mastered' },

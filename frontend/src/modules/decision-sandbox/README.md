@@ -6,7 +6,7 @@
 
 - 前端业务仅在 `frontend/src/modules/decision-sandbox/`；`DecisionSandboxPage.vue` 不调用 `fetch`，网络请求集中在 `services/decisionService.ts`，Pinia 负责加载、错误、保存与版本状态。样式仅新增 `.decision-*`，复用已有公共按钮、弹窗、状态类，不改能力成长模块或共享 token。
 - 模块二后端仅在 `backend/src/main/java/com/ican/assistant/modules/decisionsandbox/`。`DecisionRules` 独立负责数值计算；`core/ai/DecisionAiGateway` 只负责条件提取和文字解释。没有 `AI_API_KEY` 时转到确定性 `MockDecisionAiProvider`；若 AI 服务失败，也会回退到 mock。AI 的回答不作为数值输入。
-- 后端共享骨架：`AssistantApplication`、`core/CorsConfig`、`core/ApiExceptionHandler`、`api/PlatformController`，供其他模块以后接入，但目前没有实现模块一后端接口。`core/ai/` 是可复用适配层；其他模块不要覆盖这些文件，应增量扩展。
+- 后端共享入口为 `AssistantApplication`；统一的错误处理、CORS 和首页接口已与能力成长后端合并。`core/ai/` 包含两个模块的 AI 适配层。
 - 当前首页模块清单由前端 `homeService` fallback 提供；后端 `/api/v1/modules` 可返回模块状态。模块二不读取模块一内部 store。
 
 ## 本地运行

@@ -17,6 +17,18 @@ export const useAbilityStore = defineStore('ability-growth', () => {
   const error = ref('')
   const notice = ref('')
 
+  async function attemptWrite(action: () => Promise<void>): Promise<boolean> {
+    error.value = ''
+    notice.value = ''
+    try {
+      await action()
+      return true
+    } catch (cause) {
+      error.value = `更改未全部保存：${cause instanceof Error ? cause.message : '请稍后重试。'}`
+      return false
+    }
+  }
+
   const selectedNode = computed(() => graph.value?.nodes.find((node) => node.id === selectedId.value) ?? null)
   const targetScopeIds = computed(() => {
     if (!graph.value) return new Set<string>()
@@ -56,6 +68,7 @@ export const useAbilityStore = defineStore('ability-growth', () => {
   }
 
   async function saveNode(node: SkillNode) {
+    return attemptWrite(async () => {
     const existing = graph.value?.nodes.find(
       (item) => item.id === node.id || item.name.toLowerCase() === node.name.toLowerCase(),
     )
@@ -71,9 +84,11 @@ export const useAbilityStore = defineStore('ability-growth', () => {
       (item) => item.id === positionedNode.id || item.name.toLowerCase() === positionedNode.name.toLowerCase(),
     )?.id ?? null
     flash('能力节点已保存')
+    })
   }
 
   async function deleteNodes(nodeIds: string[]) {
+    return attemptWrite(async () => {
     if (!graph.value) return
     const existingIds = nodeIds.filter((id) => graph.value?.nodes.some((node) => node.id === id))
     if (!existingIds.length) return
@@ -82,29 +97,36 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     pathCache.clear()
     if (!graph.value.nodes.some((node) => node.id === selectedId.value)) selectedId.value = null
     flash(`已删除 ${existingIds.length} 个能力节点`)
+    })
   }
   async function deleteNode(nodeId: string) {
+    return attemptWrite(async () => {
     if (!graph.value?.nodes.some((node) => node.id === nodeId)) return
     const savedGraph = await abilityService.deleteNode(nodeId)
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
     pathCache.clear()
     selectedId.value = null
     flash('能力节点已删除')
+    })
   }
   async function saveRelations(relations: SkillRelation[]) {
+    return attemptWrite(async () => {
     if (!graph.value || !relations.length) return
     let savedGraph = graph.value
     for (const relation of relations) savedGraph = await abilityService.addRelation(relation)
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
     pathCache.clear()
     flash(`已建立 ${relations.length} 条方向关联`)
+    })
   }
 
   async function addEvidence(skillId: string, input: { title: string; note: string }) {
+    return attemptWrite(async () => {
     const savedGraph = await abilityService.addEvidence(skillId, input)
     graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
     selectedId.value = skillId
     flash('实践记录已添加')
+    })
   }
 
   async function parse(input: string) {
@@ -112,34 +134,38 @@ export const useAbilityStore = defineStore('ability-growth', () => {
     parseResult.value = null
     try {
       parseResult.value = await abilityService.parseInput(input, graph.value?.nodes ?? [], graph.value?.relations ?? [])
+    } catch (cause) {
+      error.value = `能力解析失败：${cause instanceof Error ? cause.message : '请稍后重试。'}`
     } finally {
       parsing.value = false
     }
   }
 
   async function acceptSuggestions() {
+    return attemptWrite(async () => {
     if (!parseResult.value || !graph.value) return
     const result = parseResult.value
     const resolvedIds = new Map<string, string>()
-    const pendingNodes: SkillNode[] = []
+    const pendingNodes: Array<{ candidateId: string; node: SkillNode }> = []
     for (const node of result.suggestedNodes) {
       const existing = graph.value.nodes.find((item) => item.name.toLowerCase() === node.name.toLowerCase())
       if (existing) {
-        pendingNodes.push({
+        pendingNodes.push({ candidateId: node.id, node: {
           ...existing,
           level: Math.max(existing.level, node.level) as SkillNode['level'],
           status: existing.status === 'target' ? 'target' : Math.max(existing.level, node.level) >= 2 ? 'mastered' : 'developing',
-        })
+        } })
       } else {
-        pendingNodes.push({ ...node, ...findFreeNodePosition(graph.value.nodes) })
+        pendingNodes.push({ candidateId: node.id, node: { ...node, ...findFreeNodePosition(graph.value.nodes) } })
       }
-      const saved = existing ?? pendingNodes.at(-1)
-      if (saved) resolvedIds.set(node.id, saved.id)
     }
-    // Save concurrently and regenerate the path once, instead of once for every selected node.
-    await Promise.all(pendingNodes.map((node) => abilityService.saveNode(node)))
-    const savedGraph = await abilityService.getGraph()
-    graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+    // Save in order so server-assigned IDs can be used by candidate relations.
+    for (const { candidateId, node } of pendingNodes) {
+      const savedGraph = await abilityService.saveNode(node)
+      graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+      const saved = savedGraph.nodes.find((item) => item.name.toLowerCase() === node.name.toLowerCase())
+      if (saved) resolvedIds.set(candidateId, saved.id)
+    }
     const relations = result.suggestedRelations.flatMap((relation) => {
       const from = resolvedIds.get(relation.from)
         ?? graph.value?.nodes.find((node) => node.id === relation.from || node.name.toLowerCase() === relation.from.toLowerCase())?.id
@@ -149,13 +175,15 @@ export const useAbilityStore = defineStore('ability-growth', () => {
       return [{ ...relation, from, to }]
     })
     if (relations.length) {
-      await Promise.all(relations.map((relation) => abilityService.addRelation(relation)))
-      const savedGraph = await abilityService.getGraph()
-      graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+      for (const relation of relations) {
+        const savedGraph = await abilityService.addRelation(relation)
+        graph.value = { ...savedGraph, nodes: resolveNodeOverlaps(savedGraph.nodes) }
+      }
     }
     path.value = await abilityService.generatePath(graph.value, currentTargetId.value)
     parseResult.value = null
     flash('候选能力已加入图谱')
+    })
   }
 
   async function loadPathForTarget(targetId: string | null, force = false) {

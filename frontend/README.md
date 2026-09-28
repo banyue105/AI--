@@ -1,6 +1,6 @@
 # 模块一：个人能力成长
 
-本目录是模块一第一阶段的可运行前端原型，使用 Vue 3、TypeScript、Vite、Vue Router 和 Pinia。
+本目录是可运行的 Vue 3、TypeScript、Vite、Vue Router 和 Pinia 前端；能力成长与决策沙盒均已有后端实现。
 
 ## 本阶段已完成
 
@@ -15,7 +15,7 @@
 - 自然语言结构化输入，以及无后端时可重复的 mock AI 结果。
 - 同名候选能力合并，避免反复解析产生重复节点。
 - 基于结构化节点和前置关系生成的可解释成长路径。
-- API 不可用时在 service 层降级，并通过 localStorage 保存演示数据。
+- 首次无法连接后端时在 service 层降级，并通过 localStorage 保存离线演示数据；后端已连接后的写入失败会报错。
 - 加载、错误、空证据和保存成功状态。
 
 ## 启动
@@ -36,18 +36,21 @@ npm run build
 
 ## API 边界
 
-页面只通过 `src/modules/ability-growth/services/abilityService.ts` 访问数据。当前会尝试以下接口，接口不可用时自动使用本地 fallback：
+页面只通过 `src/modules/ability-growth/services/abilityService.ts` 访问能力数据。后端提供以下接口；首次无法连接时可使用离线演示：
 
 ```text
 GET  /api/v1/ability/graph
 POST /api/v1/ability/skills
+DELETE /api/v1/ability/skills/{id}
+POST /api/v1/ability/relations
+POST /api/v1/ability/skills/{id}/evidence
 POST /api/v1/ability/parse
 POST /api/v1/ability/path
 GET  /api/v1/knowledge/catalog
 POST /api/v1/knowledge/generate
 ```
 
-后端接入时应继续补齐任务书要求的 profile、skill update 和 relation 接口，保持现有 TypeScript 类型语义不变。
+用户资料、技能更新和关系接口已由后端提供。决策沙盒接口见其模块文档。
 
 知识方向生成请求会同时携带用户问题和当前技能摘要：
 
@@ -64,10 +67,8 @@ AI 响应必须符合 `KnowledgeTrack`：包含方向基本信息、`stages` 阶
 
 ## 本阶段未完成
 
-- 模块一的 Spring Boot、JPA、MySQL 与 Flyway 持久化（模块二已单独实现其后端）。
-- 新增/编辑前置关系的页面表单。
-- 新增实践证据的页面表单。
-- 前端自动化测试；本阶段完成了生产构建和桌面/360px 浏览器手动验收。
+- 登录认证和生产部署配置。
+- 更完整的关系编辑与端到端自动化验收。
 - 模块二的实现与运行说明请参阅 [决策沙盒 README](src/modules/decision-sandbox/README.md)。
 
-localStorage 仅用于后端尚未合并时的演示降级。接入 Spring Boot 后，用户和能力数据应以后端为唯一事实来源。
+localStorage 仅用于首次离线演示和后端数据的本地缓存；正式数据以后端为准。

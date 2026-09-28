@@ -9,6 +9,7 @@ spring:
     open-in-view: false
 app:
   cors-origins: http://127.0.0.1:5173
+  cors-allowed-origins: http://localhost:5173,http://127.0.0.1:5173
   seed-demo: false
   ai:
     api-key: ''
