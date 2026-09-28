@@ -1,4 +1,4 @@
-export type ModuleId = 'ability-growth' | 'decision-sandbox' | 'module3'
+export type ModuleId = 'ability-growth' | 'decision-sandbox' | 'module3' | 'module4'
 
 export interface UserProfile {
   id: string

@@ -2,7 +2,7 @@
 
 “拓界”是一个面向个人成长与现实决策的响应式工作台。项目将自然语言转为结构化数据，再通过图谱、路径和比较视图让用户检查、修改并继续操作，而不是停留在一次性 AI 问答。
 
-当前仓库包含能力成长、决策沙盒和实践验证与复盘三个模块的前后端。后端通过 MyBatis 保存能力、资料和知识目录，通过 JPA 保存决策场景及实践复盘数据，统一使用 Flyway 迁移；本机无 Docker/MySQL 时可使用文件型 H2 演示模式。
+当前仓库包含能力成长、决策沙盒、实践验证与复盘、职业规划四个模块的前后端。后端通过 MyBatis 保存能力、资料和知识目录，通过 JPA 保存决策场景及实践复盘数据，职业规划使用 JDBC；统一使用 Flyway 迁移。本机无 Docker/MySQL 时可使用文件型 H2 演示模式。
 
 ## 当前实现
 
@@ -15,6 +15,7 @@
 - 决策沙盒 `/decision`：场景录入、自然语言候选条件确认、条件关系、规则推演、方案对比和版本回溯；
 - 决策沙盒 Spring Boot API、JPA/Flyway 数据持久化和无密钥确定性 mock；
 - 实践验证与复盘 `/module3`：核对成果证据、记录投入和补验历史，作为可演示原型接入首页；
+- 职业规划 `/module4/match`：岗位匹配、岗位筛选、JD 分析三个子页面；可保存职业意向、目标岗位和能力匹配报告，岗位信息为本地演示数据；
 - 白色与浅色工作台视觉系统，以及桌面/360px 响应式布局；
 - 能力成长在首次无法连接后端时可离线演示；已连接后的写入失败会明确报错。决策沙盒与实践复盘需启动后端。
 
@@ -37,6 +38,7 @@ frontend/
     modules/ability-growth/ 模块一前端
     modules/decision-sandbox/ 模块二前端
     modules/practice-review/  模块三前端
+    modules/career-planning/ 模块四前端
     pages/                  首页与模块入口
     styles/main.css         当前视觉 token 和公共样式
 backend/
@@ -44,6 +46,7 @@ backend/
   src/main/java/com/ican/assistant/modules/abilitygrowth/ 模块一业务代码
   src/main/java/com/ican/assistant/modules/decisionsandbox/ 模块二业务代码
   src/main/java/com/ican/assistant/modules/practicereview/  模块三业务代码
+  src/main/java/com/ican/assistant/modules/careerplanning/ 模块四业务代码
   src/main/resources/db/migration/                      Flyway 迁移
 plans/
   00-shared-integration.md  技术与协作合同
@@ -51,6 +54,7 @@ plans/
   01-*.md                   模块一任务书
   02-*.md                   模块二任务书
   03-practice-review-prompt.md 模块三任务书
+  04-career-planning-module.md 模块四设计与范围
   04-integration-review.md  合并前验收表
 ```
 
@@ -70,6 +74,7 @@ npm run dev
 - 能力成长：`http://localhost:5173/ability`
 - 决策沙盒：`http://localhost:5173/decision`
 - 实践验证与复盘：`http://localhost:5173/module3`
+- 职业规划：`http://localhost:5173/module4/match`（内部可切换岗位筛选和 JD 分析）
 
 生产构建：
 
@@ -85,7 +90,7 @@ cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=demo
 ```
 
-首次启动会创建演示数据；数据保存在 `backend/target/demo-db.mv.db`，重启后可恢复。MySQL、环境变量和 API 细节见 [后端文档](backend/README.md)、[决策沙盒模块文档](frontend/src/modules/decision-sandbox/README.md)和[实践复盘模块文档](frontend/src/modules/practice-review/README.md)。
+首次启动会创建演示数据；数据保存在 `backend/target/demo-db.mv.db`，重启后可恢复。MySQL、环境变量和 API 细节见 [后端文档](backend/README.md)、[决策沙盒模块文档](frontend/src/modules/decision-sandbox/README.md)、[实践复盘模块文档](frontend/src/modules/practice-review/README.md)和[职业规划模块文档](frontend/src/modules/career-planning/README.md)。
 
 ## 协作入口
 

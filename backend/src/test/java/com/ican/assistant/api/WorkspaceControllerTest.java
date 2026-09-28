@@ -22,7 +22,8 @@ class WorkspaceControllerTest {
         mvc.perform(get("/api/v1/health")).andExpect(status().isOk()).andExpect(jsonPath("$.database").value("UP"));
         mvc.perform(get("/api/v1/home")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.profile.id").value("demo-user"))
-                .andExpect(jsonPath("$.modules.length()").value(3));
+                .andExpect(jsonPath("$.modules.length()").value(4))
+                .andExpect(jsonPath("$.modules[3].id").value("module4"));
     }
 
     @Test

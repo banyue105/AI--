@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, BrainCircuit, ClipboardCheck, Clock3, GitBranch, Target } from 'lucide-vue-next'
+import { ArrowRight, BrainCircuit, BriefcaseBusiness, ClipboardCheck, Clock3, GitBranch, Target } from 'lucide-vue-next'
 import tuojieLogo from '../assets/tuojie-logo.svg'
 import { homeService, type HomeData } from '../core/api/homeService'
 
@@ -88,6 +88,7 @@ onMounted(load)
             <span class="module-icon">
               <BrainCircuit v-if="module.id === 'ability-growth'" :size="24" />
               <GitBranch v-else-if="module.id === 'decision-sandbox'" :size="24" />
+              <BriefcaseBusiness v-else-if="module.id === 'module4'" :size="24" />
               <ClipboardCheck v-else :size="24" />
             </span>
             <span class="module-content">

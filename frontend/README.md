@@ -1,13 +1,14 @@
 # 模块一：个人能力成长
 
-本目录是可运行的 Vue 3、TypeScript、Vite、Vue Router 和 Pinia 前端；能力成长、决策沙盒与实践复盘均已有后端实现。
+本目录是可运行的 Vue 3、TypeScript、Vite、Vue Router 和 Pinia 前端；四个模块均已有后端实现。
 
 - [决策沙盒 `/decision`](src/modules/decision-sandbox/README.md)
 - [实践验证与复盘 `/module3`](src/modules/practice-review/README.md)
+- [职业规划 `/module4/match`](src/modules/career-planning/README.md)
 
 ## 本阶段已完成
 
-- 移动端优先的全局主页，包含用户概览、当前目标、最近活动和三个模块入口。
+- 移动端优先的全局主页，包含用户概览、当前目标、最近活动和四个模块入口。
 - 能力成长独立路由 `/ability`。
 - 10 个种子节点、前置关系、四种节点状态及可缩放/可切换列表的能力图谱。
 - 节点选择、详情、掌握等级、实践证据和建议下一步。

@@ -203,5 +203,5 @@ java -jar target/assistant-backend-0.1.0-SNAPSHOT.jar
 - 模型输出会经过字段归一化和本地回退，但仍属于候选建议；技能等级和学习路径需要用户结合实践确认。
 - 自然语言解析不直接保存节点；成长路径不承诺精确学习时长，且不保存历史版本。
 - 目标截止日期暂未提供编辑接口。
-- 决策沙盒与实践验证复盘均已实现业务 API；模块三入口为原型状态。实践复盘说明见 `../frontend/src/modules/practice-review/README.md`。
+- 决策沙盒、实践验证复盘和职业规划均已实现业务 API；模块三、模块四入口为原型状态。职业规划使用本地演示岗位库和规则匹配，说明见 `../frontend/src/modules/career-planning/README.md`。
 

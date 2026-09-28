@@ -37,6 +37,14 @@ const fallback: HomeData = {
       status: 'prototype',
       updatedAt: '已可演示',
     },
+    {
+      id: 'module4',
+      title: '职业规划',
+      description: '匹配岗位、分析 JD、规划能力提升',
+      route: '/module4/match',
+      status: 'prototype',
+      updatedAt: '演示岗位库',
+    },
   ],
 }
 
