@@ -105,7 +105,7 @@ export interface GrowthPathStep {
 
 在 `backend/src/main/java/com/ican/assistant/modules/abilitygrowth/` 实现：
 
-- 用户能力、目标、技能关系和成长路径的 JPA Entity/Repository；
+- 用户能力、目标、技能关系和成长路径的 MyBatis 数据模型/Mapper；
 - Java DTO/record 请求/响应模型；
 - 至少实现以下接口：
 
@@ -170,7 +170,7 @@ POST /api/v1/ability/parse
 - Vue 3 + TypeScript 的模块1页面和组件；
 - 移动端主页；
 - 路由与模块注册说明；
-- Spring Boot 模块1 API、JPA 数据模型、Java DTO/record 和 seed 数据；
+- Spring Boot 模块1 API、MyBatis 数据模型、Java DTO/record 和 seed 数据；
 - 前端 API service 和 mock/fallback 说明；
 - 至少一组前端或后端测试；
 - `README` 中的前端/后端启动方式、环境变量和已知问题；

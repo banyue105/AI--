@@ -43,7 +43,7 @@ document.documentElement.scrollWidth <= window.innerWidth
 
 - [ ] 页面通过 service 访问 `/api/v1`，组件不直接 `fetch`；
 - [ ] 结构化类型与后端 DTO 语义一致；
-- [ ] 没有 API Key 或后端暂不可用时，确定性 fallback 能完成演示；
+- [ ] 没有 API Key 时通过明确标注的 mock 演示；首次后端不可达时允许离线演示，服务端拒绝写入或已连接后的断连不得伪装为本地保存成功；
 - [ ] mock 位于 service/adapter 层，不散落在 Vue 模板；
 - [ ] 写入操作有校验、失败反馈和可恢复路径；
 - [ ] AI 不直接生成未经规则校验的精确数值结论。
