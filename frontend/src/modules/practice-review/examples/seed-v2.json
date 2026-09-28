@@ -1,0 +1,9 @@
+{
+  "notice": "在 seed-v1 的实践中补充以下合成材料，然后重新检查。",
+  "evidence": [
+    { "title": "示例 TLS 配置", "kind": "config", "content": "listen 443 ssl;\nssl_certificate /demo/fullchain.pem;\nssl_certificate_key /demo/private.key;", "criterionIds": [] },
+    { "title": "示例 HTTPS 访问结果", "kind": "log", "content": "HTTPS GET https://demo.local/health -> 200", "criterionIds": [] },
+    { "title": "示例完整部署说明", "kind": "note", "content": "环境：Ubuntu 24.04，Node.js 20\n启动：npm run start\n验证：curl https://demo.local/health\n以上为合成演示材料。", "criterionIds": [] }
+  ],
+  "expectedVerdicts": ["supported", "supported", "supported", "supported"]
+}

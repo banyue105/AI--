@@ -1,0 +1,15 @@
+{
+  "title": "示例：网络服务部署",
+  "goal": "独立完成一个可复现的网络服务部署",
+  "templateId": "network-service-v1",
+  "notice": "全部内容为合成演示材料。基线时间由实际保存时记录。",
+  "metrics": [
+    { "metric": "effort", "unit": "hour", "scope": "self", "basis": "effective_work", "expected": { "min": 4, "max": 6 }, "actual": 9, "baselineTiming": "before_practice" }
+  ],
+  "processNote": "额外 3 小时用于排查环境依赖。这是用户记录的合成说明。",
+  "evidence": [
+    { "title": "示例访问日志", "kind": "log", "content": "HTTP/1.1 200 OK\n2026-09-28T09:00:00Z request_id=demo-001 method=GET path=/health status=200\n以上为合成演示日志。", "criterionIds": [] },
+    { "title": "示例部署说明（待补充）", "kind": "note", "content": "启动：npm run start\n验证：curl http://localhost:8080/health\n说明：尚未记录环境版本；以上为合成演示材料。", "criterionIds": [] }
+  ],
+  "expectedVerdicts": ["supported", "insufficient", "supported", "insufficient"]
+}

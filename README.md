@@ -2,7 +2,7 @@
 
 “拓界”是一个面向个人成长与现实决策的响应式工作台。项目将自然语言转为结构化数据，再通过图谱、路径和比较视图让用户检查、修改并继续操作，而不是停留在一次性 AI 问答。
 
-当前仓库包含能力成长和决策沙盒前后端。后端通过 MyBatis 保存能力、资料和知识目录，通过 JPA 保存决策场景及版本，统一使用 Flyway 迁移；本机无 Docker/MySQL 时可使用文件型 H2 演示模式。
+当前仓库包含能力成长、决策沙盒和实践验证与复盘三个模块的前后端。后端通过 MyBatis 保存能力、资料和知识目录，通过 JPA 保存决策场景及实践复盘数据，统一使用 Flyway 迁移；本机无 Docker/MySQL 时可使用文件型 H2 演示模式。
 
 ## 当前实现
 
@@ -14,8 +14,9 @@
 - 新节点防重叠布局、同名候选合并和本地演示持久化；
 - 决策沙盒 `/decision`：场景录入、自然语言候选条件确认、条件关系、规则推演、方案对比和版本回溯；
 - 决策沙盒 Spring Boot API、JPA/Flyway 数据持久化和无密钥确定性 mock；
+- 实践验证与复盘 `/module3`：核对成果证据、记录投入和补验历史，作为可演示原型接入首页；
 - 白色与浅色工作台视觉系统，以及桌面/360px 响应式布局；
-- 能力成长在首次无法连接后端时可离线演示；已连接后的写入失败会明确报错。决策沙盒需启动后端。
+- 能力成长在首次无法连接后端时可离线演示；已连接后的写入失败会明确报错。决策沙盒与实践复盘需启动后端。
 
 ## 技术基线
 
@@ -35,19 +36,21 @@ frontend/
     core/                   共享类型和 API service
     modules/ability-growth/ 模块一前端
     modules/decision-sandbox/ 模块二前端
+    modules/practice-review/  模块三前端
     pages/                  首页与模块入口
     styles/main.css         当前视觉 token 和公共样式
 backend/
   src/main/java/com/ican/assistant/core/                AI 适配器及共享能力
   src/main/java/com/ican/assistant/modules/abilitygrowth/ 模块一业务代码
   src/main/java/com/ican/assistant/modules/decisionsandbox/ 模块二业务代码
+  src/main/java/com/ican/assistant/modules/practicereview/  模块三业务代码
   src/main/resources/db/migration/                      Flyway 迁移
 plans/
   00-shared-integration.md  技术与协作合同
   00-ui-style-contract.md   前端视觉合同
   01-*.md                   模块一任务书
   02-*.md                   模块二任务书
-  03-*.md                   第三模块骨架任务书
+  03-practice-review-prompt.md 模块三任务书
   04-integration-review.md  合并前验收表
 ```
 
@@ -66,6 +69,7 @@ npm run dev
 - 首页：`http://localhost:5173/`
 - 能力成长：`http://localhost:5173/ability`
 - 决策沙盒：`http://localhost:5173/decision`
+- 实践验证与复盘：`http://localhost:5173/module3`
 
 生产构建：
 
@@ -81,7 +85,7 @@ cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=demo
 ```
 
-首次启动会创建演示数据；数据保存在 `backend/target/demo-db.mv.db`，重启后可恢复。MySQL、环境变量和 API 细节见 [后端文档](backend/README.md)和[决策沙盒模块文档](frontend/src/modules/decision-sandbox/README.md)。
+首次启动会创建演示数据；数据保存在 `backend/target/demo-db.mv.db`，重启后可恢复。MySQL、环境变量和 API 细节见 [后端文档](backend/README.md)、[决策沙盒模块文档](frontend/src/modules/decision-sandbox/README.md)和[实践复盘模块文档](frontend/src/modules/practice-review/README.md)。
 
 ## 协作入口
 
@@ -99,7 +103,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=demo
 ## 当前未完成
 
 - 登录认证及完整的能力关系编辑体验；
-- 第三模块最终方向；
+- 实践复盘与能力成长之间的证据写入联调；
 - 生产部署、安全认证及 MySQL 8.4 的真实环境验收；决策沙盒已有规则、接口和浏览器自动化测试。
 
 详细状态和 API 边界见 [frontend/README.md](frontend/README.md)。

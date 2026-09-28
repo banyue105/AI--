@@ -31,11 +31,11 @@ const fallback: HomeData = {
     },
     {
       id: 'module3',
-      title: '第三模块',
-      description: '产品方向仍在论证中',
-      route: '',
-      status: 'pending',
-      updatedAt: '待确定',
+      title: '实践验证与复盘',
+      description: '核对成果证据，记录实际投入与补验变化',
+      route: '/module3',
+      status: 'prototype',
+      updatedAt: '已可演示',
     },
   ],
 }

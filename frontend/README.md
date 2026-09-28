@@ -1,6 +1,9 @@
 # 模块一：个人能力成长
 
-本目录是可运行的 Vue 3、TypeScript、Vite、Vue Router 和 Pinia 前端；能力成长与决策沙盒均已有后端实现。
+本目录是可运行的 Vue 3、TypeScript、Vite、Vue Router 和 Pinia 前端；能力成长、决策沙盒与实践复盘均已有后端实现。
+
+- [决策沙盒 `/decision`](src/modules/decision-sandbox/README.md)
+- [实践验证与复盘 `/module3`](src/modules/practice-review/README.md)
 
 ## 本阶段已完成
 
@@ -50,7 +53,7 @@ GET  /api/v1/knowledge/catalog
 POST /api/v1/knowledge/generate
 ```
 
-用户资料、技能更新和关系接口已由后端提供。决策沙盒接口见其模块文档。
+用户资料、技能更新和关系接口已由后端提供。决策沙盒与实践复盘接口见各自模块文档。
 
 知识方向生成请求会同时携带用户问题和当前技能摘要：
 
