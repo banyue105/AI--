@@ -15,8 +15,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.ActiveProfiles;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:practiceconcurrency;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1")
+@ActiveProfiles("test")
 class PracticeConcurrencyTest {
     @Autowired PracticeService service;
     @Autowired PracticeReviewRepository reviews;

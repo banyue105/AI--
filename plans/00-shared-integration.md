@@ -6,13 +6,12 @@
 
 项目暂定名称：AI 个人成长与决策工作台。
 
-当前确定的三个业务模块方向：
+当前确定的两个业务模块：
 
 1. 个人能力成长模块：建立能力结构、掌握程度和成长路径。
 2. AI 决策沙盒模块：建立现实条件，比较不同选择的时间、资金、人力、资源和风险后果。
-3. 实践验证与复盘模块：关联验收标准与成果证据，对比实际投入，保存用户确认的能力与决策反馈。
 
-模块三的开发依据为 [03-practice-review-prompt.md](03-practice-review-prompt.md)。P0 独立流程与决策来源只读关联已实现，运行入口为 prototype；能力证据写入和反馈消费仍按接收方真实接口联调。实际状态见 [模块三验收记录](05-practice-review-acceptance.md)。
+第三个业务模块尚未确定。本阶段只建设可插拔模块骨架和占位页，不得自行确定第三模块的产品方向。
 
 项目面向更广泛的个人用户，但第一版演示案例可以使用大学生创新项目/专业成长场景。产品形态为移动端优先的响应式网页，报名时优先考虑软件赛道。
 
@@ -40,7 +39,7 @@
 - 移动端优先的响应式 CSS，支持 360px 宽度；
 - 不依赖重量级 UI 模板，优先使用普通 CSS 和项目内组件；
 - 图谱/流程可使用 Vue Flow，统计图可使用 ECharts；如依赖尚未安装，先确认 `frontend/package.json` 再添加；
-- 所有后端请求通过 API service：公共请求放在 `frontend/src/core/api/`，模块业务请求放在各模块 `services/`；页面不得直接调用 `fetch` 或 axios；
+- 所有后端请求通过 `frontend/src/core/api/`，页面不得直接调用 `fetch` 或 axios；
 - 开发环境使用 Vite 代理将 `/api` 转发到 Spring Boot。
 
 ### 前端视觉基线
@@ -56,7 +55,7 @@
 
 - Java 21 LTS；
 - Spring Boot 3.5.x + Spring Web + Bean Validation；
-- Spring Data JPA + MySQL 8.4 LTS；
+- MyBatis + MySQL 8.4 LTS；
 - Flyway 管理数据库迁移；
 - Maven 管理依赖和构建；
 - JUnit 5 + Spring Boot Test 做接口和服务测试；
@@ -69,7 +68,7 @@
 - 前端显示的数据必须来自 API 或明确的 mock service，不能在组件内写死业务结果；
 - 后端返回结构化 JSON，页面不依赖不可控的长文本；
 - 后端 API 前缀统一为 `/api/v1`；
-- 跨模块请求/响应类型在前端 `frontend/src/core/types.ts` 中维护，模块私有类型放在各模块 `types.ts`，后端使用语义一致的 Java DTO/record；
+- 接口请求/响应类型在前端 `frontend/src/core/types.ts` 中维护，后端使用语义一致的 Java DTO/record；
 - 每个接口写清输入、输出、错误状态和 mock 行为；
 - 前后端都要提供独立启动方式和根目录 README。
 
@@ -86,7 +85,7 @@ frontend/
     modules/
       ability-growth/       # 模块1前端
       decision-sandbox/     # 模块2前端
-      practice-review/      # 模块3实践验证与复盘
+      module3-placeholder/  # 第三模块待定占位
     pages/                  # 页面级组合
     styles/
 backend/
@@ -98,7 +97,7 @@ backend/
     modules/
       abilitygrowth/           # 模块1后端
       decisionsandbox/         # 模块2后端
-      practicereview/          # 模块3实践验证与复盘
+      module3placeholder/      # 第三模块待定占位
     common/                    # 通用响应、校验、工具
   src/main/resources/
     application.yml
@@ -187,6 +186,15 @@ AI 调用必须经过 `backend/src/main/java/com/ican/assistant/core/ai/` 的适
 
 开发阶段允许使用 mock AI 响应，不能因为没有 API Key 导致页面无法演示。mock 必须位于 service/adapter 层，不要把 mock JSON 散落到 Vue 组件中。
 
+### 当前实现补充（必须遵守）
+
+- 实际后端持久层是 **MyBatis**（Mapper + Service），不是 JPA；数据库迁移仍由 Flyway 管理。
+- 当前模块 API 的 service 位于 `frontend/src/modules/ability-growth/services/`；新增请求应复用其用户头 `X-User-Id`，为后续登录后的用户隔离预留接口。
+- AI 仅在既有工作流中出现：一句话更新能力、生成目标技术栈、可解释路径重生成和新增技能补全。不得再新增独立的 AI 功能页或面板。
+- 预置目录 `backend/src/main/resources/knowledge/catalog.json` 是技能方向和知识点的唯一事实来源。预置目录 `backend/src/main/resources/knowledge/catalog.json` 是技能方向和知识点的唯一事实来源。目前目录维护 10 个方向，但界面默认只展示 `frontend`、`backend`、`network` 三个方向，其余方向必须由用户通过 AI 匹配或明确操作加入。模型只能从目录中做语义选择，不得新建方向、技能名、阶段或 ID；服务端必须校验并映射为目录内容。
+- AI 输出一律是待确认建议，不得绕过用户确认直接写入图谱。无模型密钥、超时或 JSON 不合法时回退到可预测的本地选择规则。
+- 模型配置只放在 `backend/.env`：`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 与 `AI_DISABLE_THINKING=true`。不得将密钥写入浏览器、源码、文档示例或提交记录。
+
 ## 手机端交互要求
 
 - 首屏优先显示当前用户、核心状态和模块入口，不做营销型落地页；
@@ -206,7 +214,7 @@ AI 调用必须经过 `backend/src/main/java/com/ican/assistant/core/ai/` 的适
 ```text
 feature/ability-home
 feature/decision-sandbox
-feature/practice-review
+feature/module3-shell
 ```
 
 提交前必须：
@@ -221,7 +229,7 @@ feature/practice-review
 
 前端提交还必须附带：复用的公共视觉类、新增样式前缀、桌面/手机验收结果和页面级横向溢出检查。
 
-当前以仓库已有基础工程、模块一原型和决策沙盒为基线。模块三先交付独立业务，再由集成人接入首页和路由，最后完成跨模块接口联调。发生冲突时优先保留共享类型、API 路径、数据库迁移和路由注册方式，不直接删除队友目录。
+合并顺序：先合并队员3的 Spring Boot/MySQL/AI 基础骨架，再合并负责人的 Vue3 主页、共享前端结构和模块1，之后合并决策沙盒，最后确认第三模块占位骨架。发生冲突时优先保留共享类型、API 路径、数据库迁移和路由注册方式，不直接删除队友目录。
 
 ## 统一完成标准
 
@@ -229,8 +237,16 @@ feature/practice-review
 
 - 有独立路由和移动端布局；
 - 有真实可点击的核心交互，而不是静态截图；
-- 有 mock AI 数据，没有模型密钥或外部 AI 网络不可用时，运行中的本地后端仍可演示；后端不可用时显示错误并保留草稿，不伪造保存成功；
+- 有 mock 数据，断网或没有模型密钥也能演示；
 - AI 输入、输出和失败状态有明确处理；
 - 有至少一个从输入到可视化结果的完整流程；
 - 不依赖其他模块内部实现；
 - 能在 5 分钟总演示中被清楚展示。
+
+## 能力成长实现基线（新增功能必须遵守）
+
+- 技能关系数据统一使用 `from=前置节点`、`to=后续节点`；图谱视觉层如果展示“子节点指向父节点”，必须在绘制层反转端点，不能修改持久化语义。
+- `prerequisite` 使用带箭头实线，箭头指向前置节点；`related` 使用无箭头虚线。新增关系必须去重、防止自环，并保持节点布局从基础到进阶的左到右顺序。
+- 路径技能树必须保留当前目标涉及的预置方向分组和阶段标签；个人技能树只展示用户已有技能。
+- 一句话更新能力和目标方向生成都先返回结构化候选，用户确认后才写入；预置目录技能要支持一键加入并沿用目录 ID、描述和别名。
+- AI 不可用、超时、返回非法 JSON 或无法匹配时，页面显示明确错误/未匹配状态，不能静默跳转到任意默认方向。

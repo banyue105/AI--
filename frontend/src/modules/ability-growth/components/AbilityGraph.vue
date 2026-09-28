@@ -1,35 +1,601 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { ListTree, Maximize2, Minus, Plus } from 'lucide-vue-next'
-import type { SkillNode, SkillRelation } from '../types'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { ArrowDown, ArrowRight, Check, ListTree, Maximize2, Minus, Plus, Trash2, X } from 'lucide-vue-next'
+import type { KnowledgeTrack } from '../services/knowledgeCatalogService'
+import type { GrowthPathStep, SkillNode, SkillRelation } from '../types'
+import { layoutAbilityGraph, type AbilityGraphLayout, type LayoutSkillNode } from '../utils/graphLayout'
 
 const props = defineProps<{
   nodes: SkillNode[]
   relations: SkillRelation[]
+  tracks: KnowledgeTrack[]
+  path: GrowthPathStep[]
+  currentTargetId: string | null
   selectedId: string | null
 }>()
 
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{
+  select: [id: string]
+  deleteMany: [ids: string[]]
+  clearSelection: []
+  previewCatalog: [payload: { trackId: string; stageId: string; itemId: string }]
+  relationContext: [payload: {
+    nodeId: string
+    previous: Array<{ id: string | null; name: string; status: SkillNode['status']; meta?: string }>
+    next: Array<{ id: string | null; name: string; status: SkillNode['status']; meta?: string }>
+  }]
+}>()
+type TreeMode = 'personal' | 'direction' | 'path'
+type Orientation = 'lr' | 'tb'
+type DisplayNode = LayoutSkillNode & {
+  meta?: string
+  selectId?: string
+  catalogNode?: boolean
+  catalogRef?: { trackId: string; stageId: string; itemId: string }
+}
+type RenderLane = { id: number; label: string; x: number; y: number; width: number; height: number }
+type RenderColumn = { depth: number; label: string; x: number; y: number }
+type DisplayLayout = Omit<AbilityGraphLayout, 'nodes'> & { nodes: DisplayNode[] }
+type RenderLayout = {
+  nodes: DisplayNode[]
+  relations: AbilityGraphLayout['relations']
+  lanes: RenderLane[]
+  columns: RenderColumn[]
+  width: number
+  height: number
+}
+
 const scale = ref(0.9)
 const listMode = ref(false)
-const canvasHeight = computed(() => Math.max(470, ...props.nodes.map((node) => node.y + 110)))
+const treeMode = ref<TreeMode>('personal')
+const orientation = ref<Orientation>('lr')
+const selectedTrackIds = ref<string[]>([])
+const batchMode = ref(false)
+const batchSelectedIds = ref<string[]>([])
+const popoverPosition = ref({ x: 0, y: 0 })
+const popoverElement = ref<HTMLElement | null>(null)
+const draggingPopover = ref(false)
+const popoverVisible = ref(false)
+const previewNodeId = ref<string | null>(null)
+let dragOrigin: { pointerX: number; pointerY: number; x: number; y: number } | null = null
+const directionOptions = computed(() => props.tracks.map((track) => ({ id: track.id, label: track.shortTitle })))
+const treeModeSliderStyle = computed(() => {
+  const index = treeMode.value === 'personal' ? 0 : treeMode.value === 'direction' ? 1 : 2
+  return { transform: `translateX(calc(${index * 100}% + ${index * 2}px))` }
+})
+const orientationSliderStyle = computed(() => ({
+  transform: `translateX(calc(${orientation.value === 'lr' ? 0 : 100}% + ${orientation.value === 'lr' ? 0 : 2}px))`,
+}))
 
-const lineData = computed(() =>
-  props.relations
-    .map((relation) => {
-      const from = props.nodes.find((node) => node.id === relation.from)
-      const to = props.nodes.find((node) => node.id === relation.to)
-      if (!from || !to) return null
-      return {
-        ...relation,
-        x1: from.x + 72,
-        y1: from.y + 26,
-        x2: to.x,
-        y2: to.y + 26,
-      }
+watch(directionOptions, (options) => {
+  const validIds = new Set(options.map((option) => option.id))
+  const retained = selectedTrackIds.value.filter((id) => validIds.has(id))
+  selectedTrackIds.value = retained.length ? retained : options.slice(0, 1).map((option) => option.id)
+}, { immediate: true })
+
+watch(treeMode, () => clearSelection())
+
+function namesMatch(skill: SkillNode, name: string, aliases: string[]) {
+  const personalName = skill.name.toLowerCase()
+  return [name, ...aliases].some((candidate) => {
+    const normalized = candidate.toLowerCase()
+    return personalName.includes(normalized) || normalized.includes(personalName)
+  })
+}
+
+function compactPersonalLayout(): DisplayLayout {
+  if (!props.nodes.length) return layoutAbilityGraph([], [])
+  const xValues = [...new Set(props.nodes.map((node) => node.x))].sort((a, b) => a - b)
+  const yValues = [...new Set(props.nodes.map((node) => node.y))].sort((a, b) => a - b)
+  const nodes = props.nodes.map((node) => ({
+    ...node,
+    x: 40 + xValues.indexOf(node.x) * 174,
+    y: 48 + yValues.indexOf(node.y) * 78,
+    layoutDepth: xValues.indexOf(node.x),
+    layoutLane: 0,
+  }))
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const bestPrerequisite = new Map<string, SkillRelation>()
+  props.relations.filter((relation) => relation.type === 'prerequisite' && nodeIds.has(relation.from) && nodeIds.has(relation.to))
+    .forEach((relation) => {
+      const current = bestPrerequisite.get(relation.to)
+      if (!current || relation.confidence > current.confidence) bestPrerequisite.set(relation.to, relation)
     })
-    .filter((line) => line !== null),
+  const relatedSeen = new Set<string>()
+  const relatedCandidates = props.relations
+    .filter((relation) => nodeIds.has(relation.from) && nodeIds.has(relation.to))
+    .filter((relation) => relation.type === 'related')
+    .filter((relation) => {
+      const key = [relation.from, relation.to].sort().join('|')
+      if (relatedSeen.has(key)) return false
+      relatedSeen.add(key)
+      const from = nodes.find((node) => node.id === relation.from)!
+      const to = nodes.find((node) => node.id === relation.to)!
+      return from.layoutDepth === to.layoutDepth && Math.abs(from.y - to.y) > 1 && Math.abs(from.y - to.y) <= 82
+    })
+  const relatedDegree = new Map<string, number>()
+  const related = relatedCandidates.filter((relation) => {
+    const fromDegree = relatedDegree.get(relation.from) ?? 0
+    const toDegree = relatedDegree.get(relation.to) ?? 0
+    if (fromDegree >= 1 || toDegree >= 1) return false
+    relatedDegree.set(relation.from, fromDegree + 1)
+    relatedDegree.set(relation.to, toDegree + 1)
+    return true
+  })
+  const directPrerequisites = [...bestPrerequisite.values()]
+    .filter((relation) => {
+      const from = nodes.find((node) => node.id === relation.from)!
+      const to = nodes.find((node) => node.id === relation.to)!
+      return Math.abs(to.layoutDepth - from.layoutDepth) <= 1
+    })
+  const relations = [...directPrerequisites, ...related].map((relation) => ({ ...relation, crossDirection: false }))
+  return {
+    nodes,
+    relations,
+    lanes: [],
+    columns: [],
+    width: Math.max(780, 40 + xValues.length * 174),
+    height: Math.max(470, 48 + yValues.length * 78),
+  }
+}
+
+function knowledgeDirectionLayout(): DisplayLayout {
+  const tracks = props.tracks.filter((track) => selectedTrackIds.value.includes(track.id))
+  const nodes: DisplayNode[] = []
+  const relations: AbilityGraphLayout['relations'] = []
+  const lanes: AbilityGraphLayout['lanes'] = []
+  let laneTop = 34
+  let maxStages = 1
+
+  tracks.forEach((track, trackIndex) => {
+    maxStages = Math.max(maxStages, track.stages.length)
+    const maxItems = Math.max(1, ...track.stages.map((stage) => stage.items.length))
+    const laneHeight = 64 + maxItems * 66
+    lanes.push({ id: trackIndex, label: track.title, y: laneTop, height: laneHeight })
+
+    track.stages.forEach((stage, stageIndex) => {
+      stage.items.forEach((item, itemIndex) => {
+        const match = props.nodes.find((skill) => namesMatch(skill, item.name, item.aliases))
+        const id = `direction:${track.id}:${item.id}`
+        nodes.push({
+          id,
+          name: item.name,
+          description: item.description,
+          level: match?.level ?? 0,
+          status: match?.status ?? 'gap',
+          evidenceIds: match?.evidenceIds ?? [],
+          x: 176 + stageIndex * 208,
+          y: laneTop + 42 + itemIndex * 66,
+          layoutDepth: stageIndex,
+          layoutLane: trackIndex,
+          meta: stage.title,
+          selectId: match?.id,
+          catalogNode: true,
+          catalogRef: { trackId: track.id, stageId: stage.id, itemId: item.id },
+        })
+        if (stageIndex > 0) {
+          const previous = track.stages[stageIndex - 1]
+          const previousItem = previous.items.length ? previous.items[itemIndex % previous.items.length] : null
+          if (previousItem) {
+            relations.push({
+              from: `direction:${track.id}:${previousItem.id}`,
+              to: id,
+              type: 'prerequisite',
+              confidence: 1,
+              crossDirection: false,
+            })
+          }
+        }
+      })
+    })
+    laneTop += laneHeight + 54
+  })
+
+  return {
+    nodes,
+    relations,
+    lanes,
+    columns: [],
+    width: Math.max(860, 176 + maxStages * 208),
+    height: Math.max(470, laneTop),
+  }
+}
+
+function pathTreeLayout(): DisplayLayout {
+  const nodeById = new Map(props.nodes.map((node) => [node.id, node]))
+  const targets = props.nodes.filter((node) => node.status === 'target')
+    .sort((left, right) => Number(right.id === props.currentTargetId) - Number(left.id === props.currentTargetId))
+  const nodes: DisplayNode[] = []
+  const relations: AbilityGraphLayout['relations'] = []
+  const lanes: AbilityGraphLayout['lanes'] = []
+  let laneTop = 58
+  let maxDepth = 0
+
+  targets.forEach((target) => {
+    const useGeneratedPath = target.id === props.currentTargetId && props.path.length > 0
+    const pathIds = new Set<string>([target.id])
+    const pathRelations: SkillRelation[] = []
+
+    if (useGeneratedPath) {
+      props.path.forEach((step) => {
+        if (nodeById.has(step.skillId)) pathIds.add(step.skillId)
+        step.prerequisiteIds.forEach((prerequisiteId) => {
+          if (nodeById.has(prerequisiteId) && nodeById.has(step.skillId)) {
+            pathIds.add(prerequisiteId)
+            pathRelations.push({ from: prerequisiteId, to: step.skillId, type: 'prerequisite', confidence: 1 })
+          }
+        })
+      })
+    }
+
+    const visit = (id: string) => {
+      props.relations
+        .filter((relation) => relation.type === 'prerequisite' && relation.to === id)
+        .forEach((relation) => {
+          pathRelations.push(relation)
+          if (pathIds.has(relation.from)) return
+          pathIds.add(relation.from)
+          visit(relation.from)
+        })
+    }
+    visit(target.id)
+
+    const relationByPair = new Map<string, SkillRelation>()
+    pathRelations
+      .filter((relation) => pathIds.has(relation.from) && pathIds.has(relation.to))
+      .forEach((relation) => relationByPair.set(`${relation.from}:${relation.to}`, relation))
+    const usableRelations = [...relationByPair.values()]
+    if (!usableRelations.length) return
+
+    const depthById = new Map<string, number>()
+    const visiting = new Set<string>()
+    const depthOf = (id: string): number => {
+      const cached = depthById.get(id)
+      if (cached !== undefined) return cached
+      if (visiting.has(id)) return 0
+      visiting.add(id)
+      const prerequisites = usableRelations.filter((relation) => relation.to === id).map((relation) => relation.from)
+      const depth = prerequisites.length ? Math.max(...prerequisites.map(depthOf)) + 1 : 0
+      visiting.delete(id)
+      depthById.set(id, depth)
+      return depth
+    }
+    pathIds.forEach(depthOf)
+    const laneDepth = Math.max(0, ...depthById.values())
+    const depthRows = new Map<number, number>()
+    const orderedIds = [...pathIds].filter((id) => nodeById.has(id)).sort((left, right) => {
+      const depthDifference = (depthById.get(left) ?? 0) - (depthById.get(right) ?? 0)
+      if (depthDifference) return depthDifference
+      return (nodeById.get(left)?.name ?? '').localeCompare(nodeById.get(right)?.name ?? '', 'zh-CN')
+    })
+    orderedIds.forEach((id) => {
+      const original = nodeById.get(id)!
+      const depth = depthById.get(id) ?? 0
+      const row = depthRows.get(depth) ?? 0
+      depthRows.set(depth, row + 1)
+      nodes.push({
+        ...original,
+        id: `path:${target.id}:${id}`,
+        selectId: id,
+        x: 176 + depth * 202,
+        y: laneTop + 42 + row * 66,
+        layoutDepth: depth,
+        layoutLane: lanes.length,
+        meta: id === target.id ? '最终目标' : '前置技能',
+      })
+    })
+    usableRelations.forEach((relation) => relations.push({
+      ...relation,
+      from: `path:${target.id}:${relation.from}`,
+      to: `path:${target.id}:${relation.to}`,
+      crossDirection: false,
+    }))
+    const maxRows = Math.max(1, ...depthRows.values())
+    const laneHeight = 64 + maxRows * 66
+    lanes.push({ id: lanes.length, label: target.name, y: laneTop, height: laneHeight })
+    laneTop += laneHeight + 54
+    maxDepth = Math.max(maxDepth, laneDepth)
+  })
+
+  return {
+    nodes,
+    relations,
+    lanes,
+    columns: Array.from({ length: maxDepth + 1 }, (_, depth) => ({
+      depth,
+      x: 176 + depth * 202,
+      label: depth === maxDepth ? '目标' : depth === 0 ? '基础' : `阶段 ${depth + 1}`,
+    })),
+    width: Math.max(860, 176 + (maxDepth + 1) * 202),
+    height: Math.max(470, laneTop),
+  }
+}
+
+const modeLayout = computed<DisplayLayout>(() => {
+  if (treeMode.value === 'personal') return compactPersonalLayout()
+  if (treeMode.value === 'direction') return knowledgeDirectionLayout()
+  return pathTreeLayout()
+})
+const renderLayout = computed<RenderLayout>(() => {
+  const layout = modeLayout.value
+  const showGuides = treeMode.value !== 'personal'
+  const horizontal: RenderLayout = {
+    nodes: layout.nodes,
+    relations: layout.relations,
+    lanes: showGuides ? layout.lanes.map((lane) => ({ id: lane.id, label: lane.label, x: 16, y: lane.y, width: layout.width - 32, height: lane.height })) : [],
+    columns: treeMode.value === 'path' ? layout.columns.map((column) => ({ ...column, y: 12 })) : [],
+    width: layout.width,
+    height: layout.height,
+  }
+  if (orientation.value === 'lr') return horizontal
+
+  const laneIds = treeMode.value !== 'personal'
+    ? [...new Set(layout.nodes.map((node) => node.layoutLane))]
+    : [0]
+  const laneStarts = new Map<number, number>()
+  const laneWidths = new Map<number, number>()
+  let nextX = 48
+
+  laneIds.forEach((laneId) => {
+    const laneNodes = treeMode.value !== 'personal'
+      ? layout.nodes.filter((node) => node.layoutLane === laneId)
+      : layout.nodes
+    const depthCounts = new Map<number, number>()
+    laneNodes.forEach((node) => depthCounts.set(node.layoutDepth, (depthCounts.get(node.layoutDepth) ?? 0) + 1))
+    const maxInLevel = Math.max(1, ...depthCounts.values())
+    const laneWidth = Math.max(176, maxInLevel * 144 + 32)
+    laneStarts.set(laneId, nextX)
+    laneWidths.set(laneId, laneWidth)
+    nextX += laneWidth + 56
+  })
+
+  const rowIndexes = new Map<string, number>()
+  const verticalNodes = layout.nodes.map((node) => {
+    const laneId = treeMode.value !== 'personal' ? node.layoutLane : 0
+    const key = `${laneId}:${node.layoutDepth}`
+    const row = rowIndexes.get(key) ?? 0
+    rowIndexes.set(key, row + 1)
+    return {
+      ...node,
+      x: (laneStarts.get(laneId) ?? 48) + 16 + row * 144,
+      y: 62 + node.layoutDepth * 118,
+    }
+  })
+  const maxDepth = Math.max(0, ...verticalNodes.map((node) => node.layoutDepth))
+  const width = Math.max(720, nextX - 8)
+  const height = Math.max(470, 62 + maxDepth * 118 + 112)
+  const lanes = treeMode.value !== 'personal'
+    ? laneIds.map((laneId, index) => ({
+        id: laneId,
+        label: layout.lanes.find((lane) => lane.id === laneId)?.label ?? `方向 ${index + 1}`,
+        x: laneStarts.get(laneId) ?? 48,
+        y: 24,
+        width: laneWidths.get(laneId) ?? 176,
+        height: height - 48,
+      }))
+    : []
+  const columns = treeMode.value === 'path'
+    ? layout.columns.map((column) => ({ ...column, x: 8, y: 62 + column.depth * 118 }))
+    : []
+
+  return { nodes: verticalNodes, relations: layout.relations, lanes, columns, width, height }
+})
+
+const selectableVisibleIds = computed(() => [...new Set(
+  renderLayout.value.nodes.map((node) => personalNodeId(node)).filter((id): id is string => Boolean(id)),
+)])
+const allVisibleSelected = computed(() =>
+  selectableVisibleIds.value.length > 0 && selectableVisibleIds.value.every((id) => batchSelectedIds.value.includes(id)),
 )
+const lineData = computed(() => renderLayout.value.relations.map((relation, relationIndex) => {
+  // Draw persisted prerequisite -> dependent relations from foundations toward goals.
+  const sourceId = relation.from
+  const targetId = relation.to
+  const from = renderLayout.value.nodes.find((node) => node.id === sourceId)
+  const to = renderLayout.value.nodes.find((node) => node.id === targetId)
+  if (!from || !to) return null
+  const outgoing = renderLayout.value.relations.filter((edge) => edge.from === sourceId)
+  const incoming = renderLayout.value.relations.filter((edge) => edge.to === targetId)
+  const sourceIndex = Math.max(0, outgoing.findIndex((edge) => edge === relation))
+  const targetIndex = Math.max(0, incoming.findIndex((edge) => edge === relation))
+  const sourcePort = 15 + ((sourceIndex + 1) * 24) / (outgoing.length + 1)
+  const targetPort = 15 + ((targetIndex + 1) * 24) / (incoming.length + 1)
+  if (relation.type === 'related' && Math.abs(from.x - to.x) < 20) {
+    const startsAbove = from.y <= to.y
+    const x = from.x + 72
+    const y1 = startsAbove ? from.y + 54 : from.y
+    const y2 = startsAbove ? to.y : to.y + 54
+    const controlY = (y1 + y2) / 2
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x} ${y1} C ${x} ${controlY}, ${x} ${controlY}, ${x} ${y2}` }
+  }
+  if (orientation.value === 'tb') {
+    const x1 = from.x + sourcePort + 4
+    const y1 = from.y + 48
+    const x2 = to.x + targetPort + 4
+    const y2 = to.y
+    const controlY = (y1 + y2) / 2
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} C ${x1} ${controlY}, ${x2} ${controlY}, ${x2} ${y2}` }
+  }
+  const sameColumn = Math.abs(to.x - from.x) < 20
+  const goesRight = to.x >= from.x
+  const x1 = sameColumn ? from.x + 144 : goesRight ? from.x + 144 : from.x
+  const y1 = from.y + 27 + (sourcePort - 27)
+  const x2 = sameColumn ? to.x + 144 : goesRight ? to.x : to.x + 144
+  const y2 = to.y + 27 + (targetPort - 27)
+  if (sameColumn) {
+    const channelX = from.x + 156 + (relationIndex % 3) * 8
+    return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} H ${channelX} V ${y2} H ${x2}` }
+  }
+  const gap = Math.abs(x2 - x1)
+  const channelX = goesRight ? x1 + Math.max(20, Math.min(72, gap / 2)) : x1 - Math.max(20, Math.min(72, gap / 2))
+  return { ...relation, from: sourceId, to: targetId, path: `M ${x1} ${y1} H ${channelX} V ${y2} H ${x2}` }
+}).filter((line) => line !== null))
+
+function toggleTrack(id: string) {
+  selectedTrackIds.value = selectedTrackIds.value.includes(id)
+    ? selectedTrackIds.value.filter((trackId) => trackId !== id)
+    : [...selectedTrackIds.value, id]
+}
+
+function personalNodeId(node: DisplayNode) {
+  if (node.selectId) return node.selectId
+  return props.nodes.some((item) => item.id === node.id) ? node.id : null
+}
+
+function emitRelationContext(node: DisplayNode) {
+  const toNeighbor = (id: string) => {
+    const neighbor = renderLayout.value.nodes.find((item) => item.id === id)
+    if (!neighbor) return null
+    return {
+      id: personalNodeId(neighbor),
+      name: neighbor.name,
+      status: neighbor.status,
+      meta: neighbor.meta,
+    }
+  }
+  const previous = renderLayout.value.relations
+    .filter((relation) => relation.to === node.id)
+    .map((relation) => toNeighbor(relation.from))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  const next = renderLayout.value.relations
+    .filter((relation) => relation.from === node.id)
+    .map((relation) => toNeighbor(relation.to))
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  emit('relationContext', {
+    nodeId: personalNodeId(node) ?? node.id,
+    previous,
+    next,
+  })
+}
+
+function placePopover(node: DisplayNode) {
+  const nodeWidth = orientation.value === 'tb' ? 120 : 144
+  const popupWidth = popoverElement.value?.offsetWidth ?? 252
+  const popupHeight = popoverElement.value?.offsetHeight ?? 148
+  const gap = 12
+  let x = node.x + nodeWidth + gap
+  if (x + popupWidth > renderLayout.value.width - 8) x = node.x - popupWidth - gap
+  popoverPosition.value = {
+    x: Math.max(8, Math.min(x, renderLayout.value.width - popupWidth - 8)),
+    y: Math.max(8, Math.min(node.y - 8, renderLayout.value.height - popupHeight - 8)),
+  }
+}
+
+function selectNode(node: DisplayNode) {
+  const id = personalNodeId(node)
+  if (!id && node.catalogRef) {
+    previewNodeId.value = node.id
+    placePopover(node)
+    popoverVisible.value = true
+    emit('previewCatalog', node.catalogRef)
+    void nextTick(() => placePopover(node))
+    return
+  }
+  if (!id) return
+  if (batchMode.value) {
+    batchSelectedIds.value = batchSelectedIds.value.includes(id)
+      ? batchSelectedIds.value.filter((item) => item !== id)
+      : [...batchSelectedIds.value, id]
+    return
+  }
+  previewNodeId.value = null
+  placePopover(node)
+  popoverVisible.value = true
+  emitRelationContext(node)
+  emit('select', id)
+  void nextTick(() => placePopover(node))
+}
+
+function movePopover(event: PointerEvent) {
+  if (!dragOrigin) return
+  const popupWidth = popoverElement.value?.offsetWidth ?? 252
+  const popupHeight = popoverElement.value?.offsetHeight ?? 148
+  const nextX = dragOrigin.x + (event.clientX - dragOrigin.pointerX) / scale.value
+  const nextY = dragOrigin.y + (event.clientY - dragOrigin.pointerY) / scale.value
+  popoverPosition.value = {
+    x: Math.max(8, Math.min(nextX, renderLayout.value.width - popupWidth - 8)),
+    y: Math.max(8, Math.min(nextY, renderLayout.value.height - popupHeight - 8)),
+  }
+}
+
+function stopPopoverDrag() {
+  draggingPopover.value = false
+  dragOrigin = null
+  window.removeEventListener('pointermove', movePopover)
+  window.removeEventListener('pointerup', stopPopoverDrag)
+  window.removeEventListener('pointercancel', stopPopoverDrag)
+}
+
+function hidePopover() {
+  stopPopoverDrag()
+  popoverVisible.value = false
+}
+
+function clearSelection() {
+  hidePopover()
+  previewNodeId.value = null
+  emit('clearSelection')
+}
+
+function startPopoverDrag(event: PointerEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  draggingPopover.value = true
+  dragOrigin = {
+    pointerX: event.clientX,
+    pointerY: event.clientY,
+    x: popoverPosition.value.x,
+    y: popoverPosition.value.y,
+  }
+  window.addEventListener('pointermove', movePopover)
+  window.addEventListener('pointerup', stopPopoverDrag)
+  window.addEventListener('pointercancel', stopPopoverDrag)
+}
+
+function toggleBatchMode() {
+  batchMode.value = !batchMode.value
+  batchSelectedIds.value = []
+}
+
+function toggleVisibleSelection() {
+  const visibleIds = selectableVisibleIds.value
+  if (allVisibleSelected.value) {
+    const visibleSet = new Set(visibleIds)
+    batchSelectedIds.value = batchSelectedIds.value.filter((id) => !visibleSet.has(id))
+    return
+  }
+  batchSelectedIds.value = [...new Set([...batchSelectedIds.value, ...visibleIds])]
+}
+function deleteSelectedNodes() {
+  if (!batchSelectedIds.value.length) return
+  const names = props.nodes.filter((node) => batchSelectedIds.value.includes(node.id)).map((node) => node.name)
+  if (!window.confirm(`确定删除已选择的 ${names.length} 个技能吗？相关连线也会一并移除。`)) return
+  emit('deleteMany', [...batchSelectedIds.value])
+  batchSelectedIds.value = []
+  batchMode.value = false
+}
+
+watch(() => props.nodes.map((node) => node.id), (ids) => {
+  const validIds = new Set(ids)
+  batchSelectedIds.value = batchSelectedIds.value.filter((id) => validIds.has(id))
+})
+
+watch([() => props.selectedId, renderLayout], ([selectedId], [previousSelectedId]) => {
+  if (!selectedId) {
+    if (!previewNodeId.value) popoverVisible.value = false
+    return
+  }
+  const node = renderLayout.value.nodes.find((item) => personalNodeId(item) === selectedId)
+  if (node) {
+    placePopover(node)
+    emitRelationContext(node)
+    if (selectedId !== previousSelectedId) popoverVisible.value = true
+  }
+}, { flush: 'post' })
+
+onBeforeUnmount(() => {
+  stopPopoverDrag()
+})
 
 function setScale(value: number) {
   scale.value = Math.min(1.15, Math.max(0.7, value))
@@ -39,74 +605,110 @@ function setScale(value: number) {
 <template>
   <section class="graph-panel" aria-label="能力关系图谱">
     <div class="graph-toolbar">
+      <div class="tree-mode-switch" aria-label="技能树类型">
+        <span class="segmented-slider" :style="treeModeSliderStyle" aria-hidden="true" />
+        <button type="button" :class="{ active: treeMode === 'personal' }" @click="treeMode = 'personal'">个人技能树</button>
+        <button type="button" :class="{ active: treeMode === 'direction' }" @click="treeMode = 'direction'">方向技能树</button>
+        <button type="button" :class="{ active: treeMode === 'path' }" @click="treeMode = 'path'">路径技能树</button>
+      </div>
+      <div class="graph-actions">
+        <div class="orientation-switch" aria-label="布局方向">
+          <span class="segmented-slider" :style="orientationSliderStyle" aria-hidden="true" />
+          <button type="button" :class="{ active: orientation === 'lr' }" title="从左到右" aria-label="从左到右布局" @click="orientation = 'lr'"><ArrowRight :size="16" /></button>
+          <button type="button" :class="{ active: orientation === 'tb' }" title="从上到下" aria-label="从上到下布局" @click="orientation = 'tb'"><ArrowDown :size="16" /></button>
+        </div>
+        <span class="toolbar-divider" />
+        <button class="icon-button" :class="{ active: batchMode }" type="button" aria-label="批量删除技能" :title="batchMode ? '退出批量选择' : '批量删除'" @click="toggleBatchMode"><Trash2 :size="17" /></button>
+        <span class="toolbar-divider" />
+        <button class="icon-button" type="button" aria-label="缩小图谱" title="缩小" @click="setScale(scale - 0.1)"><Minus :size="17" /></button>
+        <button class="zoom-value" type="button" title="恢复默认缩放" @click="setScale(0.9)">{{ Math.round(scale * 100) }}%</button>
+        <button class="icon-button" type="button" aria-label="放大图谱" title="放大" @click="setScale(scale + 0.1)"><Plus :size="17" /></button>
+        <button class="icon-button" type="button" :aria-label="listMode ? '切换到图谱' : '切换到分层列表'" :title="listMode ? '图谱视图' : '分层列表'" @click="listMode = !listMode">
+          <Maximize2 v-if="listMode" :size="17" />
+          <ListTree v-else :size="17" />
+        </button>
+      </div>
+    </div>
+
+    <div class="graph-subbar">
+      <Transition name="subbar-content" mode="out-in">
+      <div v-if="batchMode" key="batch" class="batch-delete-bar">
+        <span>已选择 <strong>{{ batchSelectedIds.length }}</strong> 项</span>
+        <button v-if="listMode" type="button" class="text-button compact" :disabled="!selectableVisibleIds.length" @click="toggleVisibleSelection">{{ allVisibleSelected ? '清空当前列表' : '选择当前列表' }}</button>
+        <button type="button" class="text-button compact" @click="toggleBatchMode"><X :size="15" />取消</button>
+        <button type="button" class="danger-action compact" :disabled="!batchSelectedIds.length" @click="deleteSelectedNodes"><Trash2 :size="15" />删除所选</button>
+      </div>
+      <div v-else-if="treeMode === 'direction'" key="direction" class="direction-picker" aria-label="选择展示方向">
+        <span>展示方向</span>
+        <TransitionGroup name="direction-option">
+          <label v-for="option in directionOptions" :key="option.id" :class="{ active: selectedTrackIds.includes(option.id) }">
+            <input type="checkbox" :checked="selectedTrackIds.includes(option.id)" @change="toggleTrack(option.id)" />
+            {{ option.label }}
+          </label>
+        </TransitionGroup>
+      </div>
+      <div v-else :key="treeMode" class="view-description">{{ treeMode === 'personal' ? '全部技能积累' : '目标能力的前置学习链' }}</div>
+      </Transition>
       <div class="legend" aria-label="节点状态图例">
         <span><i class="dot mastered" />已掌握</span>
         <span><i class="dot developing" />进行中</span>
         <span><i class="dot gap" />缺口</span>
         <span><i class="dot target" />目标</span>
       </div>
-      <div class="graph-actions">
-        <button class="icon-button" type="button" aria-label="缩小图谱" title="缩小" @click="setScale(scale - 0.1)">
-          <Minus :size="18" />
-        </button>
-        <button class="zoom-value" type="button" title="恢复默认缩放" @click="setScale(0.9)">{{ Math.round(scale * 100) }}%</button>
-        <button class="icon-button" type="button" aria-label="放大图谱" title="放大" @click="setScale(scale + 0.1)">
-          <Plus :size="18" />
-        </button>
-        <button class="icon-button" type="button" :aria-label="listMode ? '切换到图谱' : '切换到分层列表'" :title="listMode ? '图谱视图' : '分层列表'" @click="listMode = !listMode">
-          <Maximize2 v-if="listMode" :size="18" />
-          <ListTree v-else :size="18" />
-        </button>
-      </div>
     </div>
 
-    <div v-if="listMode" class="skill-list">
+    <Transition name="graph-view" mode="out-in">
+    <div v-if="listMode" key="list" class="skill-list" :class="{ 'batch-mode': batchMode }" @click.self="clearSelection">
       <button
-        v-for="node in nodes"
+        v-for="(node, nodeIndex) in renderLayout.nodes"
         :key="node.id"
         type="button"
         class="skill-list-item"
-        :class="{ selected: selectedId === node.id }"
-        @click="emit('select', node.id)"
+        :class="{
+          selected: !batchMode && popoverVisible && selectedId === (node.selectId ?? node.id),
+          'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''),
+          'batch-disabled': batchMode && !personalNodeId(node),
+        }"
+        :aria-pressed="batchMode && personalNodeId(node) ? batchSelectedIds.includes(personalNodeId(node) ?? '') : undefined"
+        :aria-disabled="batchMode && !personalNodeId(node)"
+        :style="{ animationDelay: `${nodeIndex * 30}ms` }"
+        @click.stop="selectNode(node)"
       >
+        <i v-if="batchMode" class="list-batch-check" aria-hidden="true"><Check v-if="batchSelectedIds.includes(personalNodeId(node) ?? '')" :size="12" /></i>
         <span class="node-status" :class="node.status">{{ node.status === 'mastered' ? '已掌握' : node.status === 'developing' ? '进行中' : node.status === 'target' ? '目标' : '缺口' }}</span>
         <strong>{{ node.name }}</strong>
-        <small>等级 {{ node.level }}/4</small>
+        <small>{{ node.meta ?? `等级 ${node.level}/4` }}</small>
       </button>
     </div>
 
-    <div v-else class="graph-viewport">
-      <div class="graph-canvas" :style="{ transform: `scale(${scale})`, height: `${canvasHeight}px` }">
-        <svg class="edges" width="1040" :height="canvasHeight" :viewBox="`0 0 1040 ${canvasHeight}`" aria-hidden="true">
-          <defs>
-            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" />
-            </marker>
-          </defs>
-          <line
-            v-for="line in lineData"
-            :key="`${line.from}-${line.to}`"
-            :x1="line.x1"
-            :y1="line.y1"
-            :x2="line.x2"
-            :y2="line.y2"
-            :class="line.type"
-            marker-end="url(#arrow)"
-          />
+    <div v-else key="graph" class="graph-viewport" @click.self="clearSelection">
+      <div v-if="!renderLayout.nodes.length" class="graph-empty">{{ treeMode === 'path' ? '当前目标暂无可展示的前置路径' : '至少选择一个方向' }}</div>
+      <div v-else class="graph-canvas" @click.self="clearSelection" :class="[`orientation-${orientation}`, `mode-${treeMode}`]" :style="{ transform: `scale(${scale})`, width: `${renderLayout.width}px`, height: `${renderLayout.height}px` }">
+        <div class="graph-columns" aria-hidden="true"><span v-for="column in renderLayout.columns" :key="column.depth" :style="{ left: `${column.x}px`, top: `${column.y}px` }">{{ column.label }}</span></div>
+        <div v-for="(lane, laneIndex) in renderLayout.lanes" :key="lane.id" class="graph-lane" :style="{ left: `${lane.x}px`, top: `${lane.y}px`, width: `${lane.width}px`, height: `${lane.height}px`, animationDelay: `${laneIndex * 55}ms` }" aria-hidden="true"><span>{{ lane.label }}</span></div>
+        <svg class="edges" :width="renderLayout.width" :height="renderLayout.height" :viewBox="`0 0 ${renderLayout.width} ${renderLayout.height}`" aria-hidden="true">
+          <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" /></marker></defs>
+          <path v-for="(line, lineIndex) in lineData" :key="`${line.from}-${line.to}`" :d="line.path" :class="[line.type, { 'cross-direction': line.crossDirection }]" :style="{ animationDelay: `${lineIndex * 24}ms` }" :marker-end="line.type === 'prerequisite' ? 'url(#arrow)' : undefined" />
         </svg>
-        <button
-          v-for="node in nodes"
-          :key="node.id"
-          type="button"
-          class="skill-node"
-          :class="[node.status, { selected: selectedId === node.id }]"
-          :style="{ left: `${node.x}px`, top: `${node.y}px` }"
-          @click="emit('select', node.id)"
-        >
+        <button v-for="(node, nodeIndex) in renderLayout.nodes" :key="node.id" type="button" class="skill-node" :class="[node.status, { selected: !batchMode && popoverVisible && (selectedId === (node.selectId ?? node.id) || previewNodeId === node.id), 'batch-selectable': batchMode && personalNodeId(node), 'batch-selected': batchSelectedIds.includes(personalNodeId(node) ?? ''), 'catalog-node': node.catalogNode, 'catalog-previewable': node.catalogNode && !node.selectId }]" :style="{ left: `${node.x}px`, top: `${node.y}px`, animationDelay: `${nodeIndex * 28}ms` }" @click.stop="selectNode(node)">
+          <i v-if="batchMode && personalNodeId(node)" class="batch-check" aria-hidden="true"><Check v-if="batchSelectedIds.includes(personalNodeId(node) ?? '')" :size="12" /></i>
           <span>{{ node.name }}</span>
-          <small>{{ node.level }}/4 · {{ node.status === 'mastered' ? '已掌握' : node.status === 'developing' ? '进行中' : node.status === 'target' ? '目标' : '缺口' }}</small>
+          <small>{{ node.meta ? `${node.meta} · ${node.selectId ? '个人已有' : '待学习'}` : `${node.level}/4 · ${node.status === 'mastered' ? '已掌握' : node.status === 'developing' ? '进行中' : node.status === 'target' ? '目标' : '缺口'}` }}</small>
         </button>
+        <Transition name="node-popover">
+          <div
+            v-if="popoverVisible && $slots.inspector"
+            ref="popoverElement"
+            class="graph-node-popover"
+            :class="{ dragging: draggingPopover }"
+            :style="{ left: `${popoverPosition.x}px`, top: `${popoverPosition.y}px` }"
+            @click.stop
+          >
+            <slot name="inspector" :start-drag="startPopoverDrag" :close-popover="clearSelection" />
+          </div>
+        </Transition>
       </div>
     </div>
+    </Transition>
   </section>
 </template>

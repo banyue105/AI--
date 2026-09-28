@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, BrainCircuit, ClipboardCheck, Clock3, GitBranch, Hexagon, Target } from 'lucide-vue-next'
+import { ArrowRight, BrainCircuit, ClipboardCheck, Clock3, GitBranch, Target } from 'lucide-vue-next'
+import tuojieLogo from '../assets/tuojie-logo.svg'
 import { homeService, type HomeData } from '../core/api/homeService'
 
 const router = useRouter()
@@ -33,7 +34,7 @@ onMounted(load)
 <template>
   <main class="home-shell">
     <header class="home-header">
-      <div class="brand-mark"><Hexagon :size="22" /> 拓界</div>
+      <div class="brand-mark"><img :src="tuojieLogo" alt="拓界团队" /></div>
       <time>{{ dateLabel }}</time>
     </header>
 

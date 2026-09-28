@@ -43,10 +43,12 @@ document.documentElement.scrollWidth <= window.innerWidth
 
 - [ ] 页面通过 service 访问 `/api/v1`，组件不直接 `fetch`；
 - [ ] 结构化类型与后端 DTO 语义一致；
-- [ ] 没有 API Key 或 AI 服务暂不可用时，运行中的后端通过确定性 fallback 完成演示；后端不可用时显示错误、保留草稿，不伪报保存成功（模块一现有本地原型须明确标注演示来源）；
+- [ ] 没有 API Key 或后端暂不可用时，确定性 fallback 能完成演示；
 - [ ] mock 位于 service/adapter 层，不散落在 Vue 模板；
 - [ ] 写入操作有校验、失败反馈和可恢复路径；
 - [ ] AI 不直接生成未经规则校验的精确数值结论。
+- [ ] AI 候选方向只能是预置 `frontend`、`backend`、`network`；候选技能只能是预置技能或当前用户已有技能，服务端已完成 ID 和字段校验。
+- [ ] AI 结果仍需用户确认后才写入能力图谱；超时、无 Key、模型返回非法 JSON 时展示可预测的 fallback。
 
 ## 5. 构建与手动流程
 
@@ -56,6 +58,7 @@ document.documentElement.scrollWidth <= window.innerWidth
 - [ ] 至少完整走通一次“输入 -> 结构化 -> 用户确认 -> 可视化 -> 修改/比较”；
 - [ ] 浏览器控制台无新增 error；
 - [ ] 接口失败不会使整页白屏。
+- [ ] 动画在 1280x720 与 360x800 均无抖动、遮挡或页面级横向溢出；展开详情无弹跳，`prefers-reduced-motion` 下可用。
 
 ## 6. 提交说明模板
 

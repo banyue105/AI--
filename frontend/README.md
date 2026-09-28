@@ -1,10 +1,6 @@
-# 拓界前端与模块一运行说明
+# 模块一：个人能力成长
 
-本目录包含首页、能力成长原型、决策沙盒和实践复盘，使用 Vue 3、TypeScript、Vite、Vue Router 和 Pinia。下文保留模块一的功能与 API 边界；其他模块见各自 README。
-
-- [决策沙盒 `/decision`](src/modules/decision-sandbox/README.md)：后端场景、规则推演、版本与对比。
-- [实践验证与复盘 `/module3`](src/modules/practice-review/README.md)：验收清单、版本化材料检查、原文引用、投入与参考反馈；状态为 prototype。
-- 构建：`npm run build`；浏览器验收：`npm run test:e2e`（模块二）、`npm run test:practice`（模块三）。
+本目录记录模块一第一阶段的前端实现。当前仓库还已接入 `/decision` 与 `/module3`，模块一的后端也已由最终版分支接入；完整运行方式见根目录 README 与各模块 README。
 
 ## 本阶段已完成
 
@@ -30,7 +26,7 @@ npm install
 npm run dev
 ```
 
-默认地址为 `http://localhost:5173`，`/api` 会代理到 `http://localhost:8000`。可通过 `API_PROXY_TARGET` 更换代理目标；同时在后端 `APP_CORS_ORIGINS` 允许实际使用的前端来源。
+默认地址为 `http://localhost:5173`，`/api` 会代理到 `http://localhost:8000`。
 
 生产构建：
 
@@ -66,12 +62,8 @@ POST /api/v1/knowledge/generate
 
 AI 响应必须符合 `KnowledgeTrack`：包含方向基本信息、`stages` 阶段数组以及每个阶段的 `items` 技术项数组。前端在 service 层校验响应结构后才交给通用组件渲染；接口不可用时使用同结构的确定性 fallback。
 
-## 本阶段未完成
+## 合并后的模块边界
 
-- 模块一的 Spring Boot、JPA、MySQL 与 Flyway 持久化（模块二、模块三已实现各自后端）。
-- 新增/编辑前置关系的页面表单。
-- 新增实践证据的页面表单。
-- 模块一的前端自动化测试；该模块完成了生产构建和桌面/360px 浏览器手动验收。模块二、模块三已有浏览器自动化测试。
-- 模块二的实现与运行说明请参阅 [决策沙盒 README](src/modules/decision-sandbox/README.md)。
-
-localStorage 仅用于后端尚未合并时的演示降级。接入 Spring Boot 后，用户和能力数据应以后端为唯一事实来源。
+- 模块一的前后端以 `codex/ability-tree-views` 最终版为准；后端不可用时，模块一仍可通过 service 层提供本地演示。
+- 模块二 `/decision` 与模块三 `/module3` 已接入路由；操作和 API 见各自的模块 README。
+- 模块二、三的业务数据以后端数据库为准。模块三本地存储只用于未提交草稿和请求重试。
