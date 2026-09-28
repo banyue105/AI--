@@ -21,11 +21,6 @@ const tabs = [
       </div>
     </header>
     <div class="career-content">
-      <section class="career-intro">
-        <p class="eyebrow">MODULE 04 / CAREER PLANNING</p>
-        <h1>把能力，放进真实的职业选择里</h1>
-        <p>筛选方向、对照岗位要求，再把目标岗位的 JD 变成可以执行的成长建议。</p>
-      </section>
       <nav class="career-tabs" aria-label="职业规划子页面">
         <RouterLink v-for="tab in tabs" :key="tab.to" :to="tab.to" :class="{ active: $route.path === tab.to }">
           <component :is="tab.icon" :size="17" />{{ tab.label }}
