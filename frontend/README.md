@@ -1,6 +1,10 @@
-# 模块一：个人能力成长
+# 拓界前端与模块一运行说明
 
-本目录是模块一第一阶段的可运行前端原型，使用 Vue 3、TypeScript、Vite、Vue Router 和 Pinia。
+本目录包含首页、能力成长原型、决策沙盒和实践复盘，使用 Vue 3、TypeScript、Vite、Vue Router 和 Pinia。下文保留模块一的功能与 API 边界；其他模块见各自 README。
+
+- [决策沙盒 `/decision`](src/modules/decision-sandbox/README.md)：后端场景、规则推演、版本与对比。
+- [实践验证与复盘 `/module3`](src/modules/practice-review/README.md)：验收清单、版本化材料检查、原文引用、投入与参考反馈；状态为 prototype。
+- 构建：`npm run build`；浏览器验收：`npm run test:e2e`（模块二）、`npm run test:practice`（模块三）。
 
 ## 本阶段已完成
 
@@ -26,7 +30,7 @@ npm install
 npm run dev
 ```
 
-默认地址为 `http://localhost:5173`，`/api` 会代理到 `http://localhost:8000`。
+默认地址为 `http://localhost:5173`，`/api` 会代理到 `http://localhost:8000`。可通过 `API_PROXY_TARGET` 更换代理目标；同时在后端 `APP_CORS_ORIGINS` 允许实际使用的前端来源。
 
 生产构建：
 
@@ -64,10 +68,10 @@ AI 响应必须符合 `KnowledgeTrack`：包含方向基本信息、`stages` 阶
 
 ## 本阶段未完成
 
-- 模块一的 Spring Boot、JPA、MySQL 与 Flyway 持久化（模块二已单独实现其后端）。
+- 模块一的 Spring Boot、JPA、MySQL 与 Flyway 持久化（模块二、模块三已实现各自后端）。
 - 新增/编辑前置关系的页面表单。
 - 新增实践证据的页面表单。
-- 前端自动化测试；本阶段完成了生产构建和桌面/360px 浏览器手动验收。
+- 模块一的前端自动化测试；该模块完成了生产构建和桌面/360px 浏览器手动验收。模块二、模块三已有浏览器自动化测试。
 - 模块二的实现与运行说明请参阅 [决策沙盒 README](src/modules/decision-sandbox/README.md)。
 
 localStorage 仅用于后端尚未合并时的演示降级。接入 Spring Boot 后，用户和能力数据应以后端为唯一事实来源。

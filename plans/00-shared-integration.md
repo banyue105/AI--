@@ -6,12 +6,13 @@
 
 项目暂定名称：AI 个人成长与决策工作台。
 
-当前确定的两个业务模块：
+当前确定的三个业务模块方向：
 
 1. 个人能力成长模块：建立能力结构、掌握程度和成长路径。
 2. AI 决策沙盒模块：建立现实条件，比较不同选择的时间、资金、人力、资源和风险后果。
+3. 实践验证与复盘模块：关联验收标准与成果证据，对比实际投入，保存用户确认的能力与决策反馈。
 
-第三个业务模块尚未确定。本阶段只建设可插拔模块骨架和占位页，不得自行确定第三模块的产品方向。
+模块三的开发依据为 [03-practice-review-prompt.md](03-practice-review-prompt.md)。P0 独立流程与决策来源只读关联已实现，运行入口为 prototype；能力证据写入和反馈消费仍按接收方真实接口联调。实际状态见 [模块三验收记录](05-practice-review-acceptance.md)。
 
 项目面向更广泛的个人用户，但第一版演示案例可以使用大学生创新项目/专业成长场景。产品形态为移动端优先的响应式网页，报名时优先考虑软件赛道。
 
@@ -39,7 +40,7 @@
 - 移动端优先的响应式 CSS，支持 360px 宽度；
 - 不依赖重量级 UI 模板，优先使用普通 CSS 和项目内组件；
 - 图谱/流程可使用 Vue Flow，统计图可使用 ECharts；如依赖尚未安装，先确认 `frontend/package.json` 再添加；
-- 所有后端请求通过 `frontend/src/core/api/`，页面不得直接调用 `fetch` 或 axios；
+- 所有后端请求通过 API service：公共请求放在 `frontend/src/core/api/`，模块业务请求放在各模块 `services/`；页面不得直接调用 `fetch` 或 axios；
 - 开发环境使用 Vite 代理将 `/api` 转发到 Spring Boot。
 
 ### 前端视觉基线
@@ -68,7 +69,7 @@
 - 前端显示的数据必须来自 API 或明确的 mock service，不能在组件内写死业务结果；
 - 后端返回结构化 JSON，页面不依赖不可控的长文本；
 - 后端 API 前缀统一为 `/api/v1`；
-- 接口请求/响应类型在前端 `frontend/src/core/types.ts` 中维护，后端使用语义一致的 Java DTO/record；
+- 跨模块请求/响应类型在前端 `frontend/src/core/types.ts` 中维护，模块私有类型放在各模块 `types.ts`，后端使用语义一致的 Java DTO/record；
 - 每个接口写清输入、输出、错误状态和 mock 行为；
 - 前后端都要提供独立启动方式和根目录 README。
 
@@ -85,7 +86,7 @@ frontend/
     modules/
       ability-growth/       # 模块1前端
       decision-sandbox/     # 模块2前端
-      module3-placeholder/  # 第三模块待定占位
+      practice-review/      # 模块3实践验证与复盘
     pages/                  # 页面级组合
     styles/
 backend/
@@ -97,7 +98,7 @@ backend/
     modules/
       abilitygrowth/           # 模块1后端
       decisionsandbox/         # 模块2后端
-      module3placeholder/      # 第三模块待定占位
+      practicereview/          # 模块3实践验证与复盘
     common/                    # 通用响应、校验、工具
   src/main/resources/
     application.yml
@@ -205,7 +206,7 @@ AI 调用必须经过 `backend/src/main/java/com/ican/assistant/core/ai/` 的适
 ```text
 feature/ability-home
 feature/decision-sandbox
-feature/module3-shell
+feature/practice-review
 ```
 
 提交前必须：
@@ -220,7 +221,7 @@ feature/module3-shell
 
 前端提交还必须附带：复用的公共视觉类、新增样式前缀、桌面/手机验收结果和页面级横向溢出检查。
 
-合并顺序：先合并队员3的 Spring Boot/MySQL/AI 基础骨架，再合并负责人的 Vue3 主页、共享前端结构和模块1，之后合并决策沙盒，最后确认第三模块占位骨架。发生冲突时优先保留共享类型、API 路径、数据库迁移和路由注册方式，不直接删除队友目录。
+当前以仓库已有基础工程、模块一原型和决策沙盒为基线。模块三先交付独立业务，再由集成人接入首页和路由，最后完成跨模块接口联调。发生冲突时优先保留共享类型、API 路径、数据库迁移和路由注册方式，不直接删除队友目录。
 
 ## 统一完成标准
 
@@ -228,7 +229,7 @@ feature/module3-shell
 
 - 有独立路由和移动端布局；
 - 有真实可点击的核心交互，而不是静态截图；
-- 有 mock 数据，断网或没有模型密钥也能演示；
+- 有 mock AI 数据，没有模型密钥或外部 AI 网络不可用时，运行中的本地后端仍可演示；后端不可用时显示错误并保留草稿，不伪造保存成功；
 - AI 输入、输出和失败状态有明确处理；
 - 有至少一个从输入到可视化结果的完整流程；
 - 不依赖其他模块内部实现；

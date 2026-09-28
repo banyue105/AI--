@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, BrainCircuit, Clock3, GitBranch, Hexagon, Sparkles, Target } from 'lucide-vue-next'
+import { ArrowRight, BrainCircuit, ClipboardCheck, Clock3, GitBranch, Hexagon, Target } from 'lucide-vue-next'
 import { homeService, type HomeData } from '../core/api/homeService'
 
 const router = useRouter()
@@ -87,7 +87,7 @@ onMounted(load)
             <span class="module-icon">
               <BrainCircuit v-if="module.id === 'ability-growth'" :size="24" />
               <GitBranch v-else-if="module.id === 'decision-sandbox'" :size="24" />
-              <Sparkles v-else :size="24" />
+              <ClipboardCheck v-else :size="24" />
             </span>
             <span class="module-content">
               <span class="module-meta">
