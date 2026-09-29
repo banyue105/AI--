@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '../pages/HomePage.vue'
 import AbilityGrowthPage from '../modules/ability-growth/AbilityGrowthPage.vue'
 import DecisionSandboxPage from '../modules/decision-sandbox/DecisionSandboxPage.vue'
+import { scrollBehavior } from './scrollBehavior'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -21,5 +22,5 @@ export const router = createRouter({
       ],
     },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior,
 })

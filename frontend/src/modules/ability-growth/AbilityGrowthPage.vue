@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ModuleHighlights from '../../app/ModuleHighlights.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   ArrowLeft,
@@ -404,6 +405,8 @@ onMounted(async () => {
       if (!catalog.some((track) => track.id === selectedKnowledgeTrackId.value)) {
         selectedKnowledgeTrackId.value = catalog[0]?.id ?? ''
       }
+    }).catch((cause: unknown) => {
+      if (!store.error) store.error = cause instanceof Error ? cause.message : '知识目录暂时无法加载，请稍后重试。'
     }),
   ])
 
@@ -416,7 +419,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="ability-shell">
+  <main id="page-content" class="ability-shell" tabindex="-1">
     <header class="ability-header">
       <div class="ability-header-inner">
         <RouterLink to="/" class="icon-button header-back" aria-label="返回工作台" title="返回工作台">
@@ -430,6 +433,8 @@ onMounted(async () => {
         <button class="primary-button compact" type="button" @click="openNewNode"><Plus :size="17" /> 新增能力</button>
       </div>
     </header>
+
+    <ModuleHighlights module-id="ability-growth" />
 
     <div v-if="store.loading" class="state-panel page-loading">
       <span class="spinner" />

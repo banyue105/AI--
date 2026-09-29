@@ -48,6 +48,9 @@ const fallback: HomeData = {
   ],
 }
 
+// The registered entries also support navigation before personal data loads.
+export const defaultModuleManifests: readonly ModuleManifest[] = fallback.modules
+
 export const homeService = {
   async getHome(): Promise<HomeData> {
     try {

@@ -1,5 +1,6 @@
 .decision-shell { min-height: 100vh; padding-bottom: 56px; }
-.decision-header { position: sticky; top: 0; z-index: 20; height: 64px; border-bottom: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(18px) saturate(130%); }
+.decision-header { position: sticky; top: var(--app-nav-height); z-index: 20; height: 64px; border-bottom: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(18px) saturate(130%); }
+.decision-shell h2, .decision-shell [id] { scroll-margin-top: calc(var(--app-nav-height) + var(--app-module-header-height) + 16px); }
 .decision-header-inner { max-width: 1320px; height: 100%; margin: auto; padding: 0 24px; display: flex; align-items: center; gap: 12px; }
 .decision-page-icon, .decision-input-icon { width: 36px; height: 36px; border-radius: 6px; color: var(--brand); background: var(--brand-soft); display: grid; place-items: center; flex: 0 0 auto; }
 .decision-page-title { margin-right: auto; display: flex; flex-direction: column; line-height: 1.4; }

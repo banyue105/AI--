@@ -8,6 +8,7 @@
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
     "test:e2e": "node tests/decision-e2e.mjs",
     "test:practice": "node tests/practice-e2e.mjs",
+    "test:home": "node tests/home-e2e.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

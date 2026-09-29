@@ -6,11 +6,12 @@
 
 项目暂定名称：AI 个人成长与决策工作台。
 
-当前确定的三个业务模块方向：
+当前四个业务模块方向：
 
 1. 个人能力成长模块：建立能力结构、掌握程度和成长路径。
 2. AI 决策沙盒模块：建立现实条件，比较不同选择的时间、资金、人力、资源和风险后果。
 3. 实践验证与复盘模块：关联验收标准与成果证据，对比实际投入，保存用户确认的能力与决策反馈。
+4. 职业规划模块：演示岗位匹配、筛选与 JD 规则分析，读取能力图谱并保存职业意向和报告快照；入口为 prototype。
 
 模块三的开发依据为 [03-practice-review-prompt.md](03-practice-review-prompt.md)。P0 独立流程与决策来源只读关联已实现，运行入口为 prototype；能力证据写入和反馈消费仍按接收方真实接口联调。实际状态见 [模块三验收记录](05-practice-review-acceptance.md)。
 
@@ -45,6 +46,7 @@
 
 ### 前端视觉基线
 
+- 首页按 [06 首页改版任务书](06-homepage-redesign-prompt.md) 展示项目介绍 Banner、四模块简介入口和亮点；全站模块切换统一由应用层顶部导航承担。该结构接替旧版首页个人状态、三模块和底部导航要求，模块操作页继续遵守共享视觉合同。
 - 当前 `/` 和 `/ability` 是已落地的产品视觉基准，不得另起设计语言；
 - `plans/00-ui-style-contract.md` 是强制合同，不是灵感参考；
 - `frontend/src/styles/main.css` 中的 `:root` token 由集成人维护，模块开发者不得修改 token 值；
@@ -114,7 +116,7 @@ contracts/                  # 可选：API 示例 JSON 与接口说明
 前端共享类型放在 `frontend/src/core/types.ts`，后端使用语义一致的 Java DTO/record。需要保持稳定：
 
 ```ts
-export type ModuleId = 'ability-growth' | 'decision-sandbox' | 'module3';
+export type ModuleId = 'ability-growth' | 'decision-sandbox' | 'module3' | 'module4';
 
 export interface UserProfile {
   id: string;
@@ -198,9 +200,9 @@ AI 调用必须经过 `backend/src/main/java/com/ican/assistant/core/ai/` 的适
 
 ## 手机端交互要求
 
-- 首屏优先显示当前用户、核心状态和模块入口，不做营销型落地页；
+- 首页首屏按 06 任务书展示项目介绍和顶部导航；模块内部仍优先显示核心状态与主要操作；
 - 最小触控区域 44px；
-- 关键操作固定在底部或可见区域；
+- 模块内关键操作保持在可见区域；全站模块切换使用顶部导航；
 - 图谱和分支图支持横向滚动、缩放或折叠；
 - 任何动态内容都不能导致布局跳动；
 - 空状态、加载、错误和无数据状态都要实现；

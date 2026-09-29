@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ModuleHighlights from '../../app/ModuleHighlights.vue'
 import { ArrowLeft, BriefcaseBusiness, FileSearch, ListFilter, Sparkles } from 'lucide-vue-next'
 import { RouterLink, RouterView } from 'vue-router'
 import './career.css'
@@ -11,7 +12,7 @@ const tabs = [
 </script>
 
 <template>
-  <main class="career-shell">
+  <main id="page-content" class="career-shell" tabindex="-1">
     <header class="career-header">
       <div class="career-header-inner">
         <RouterLink class="career-back" to="/" aria-label="返回工作台"><ArrowLeft :size="18" /></RouterLink>
@@ -20,6 +21,8 @@ const tabs = [
         <span class="career-demo-label">本地演示岗位库</span>
       </div>
     </header>
+    <ModuleHighlights module-id="module4" />
+
     <div class="career-content">
       <nav class="career-tabs" aria-label="职业规划子页面">
         <RouterLink v-for="tab in tabs" :key="tab.to" :to="tab.to" :class="{ active: $route.path === tab.to }">

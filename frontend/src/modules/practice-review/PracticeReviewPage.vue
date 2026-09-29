@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ModuleHighlights from '../../app/ModuleHighlights.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, CheckCircle2, CircleAlert, ClipboardCheck, FileCheck2, History, Info, Link2, Pencil, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-vue-next'
@@ -52,13 +53,15 @@ async function reload() { await store.init(store.project?.id || (typeof route.pa
 </script>
 
 <template>
-  <main class="practice-shell">
+  <main id="page-content" class="practice-shell" tabindex="-1">
     <header class="practice-header"><div class="practice-header-inner">
       <RouterLink to="/" class="icon-button" aria-label="返回工作台" title="返回工作台"><ArrowLeft :size="20" /></RouterLink>
       <div class="page-title"><span class="page-icon"><ClipboardCheck :size="20" /></span><div><strong>实践验证与复盘</strong><small>让成果证据成为下一次行动的依据</small></div></div>
       <div class="sync-state practice-sync"><span /><template v-if="store.busy === 'saving'">保存中</template><template v-else>后端记录</template></div>
       <button type="button" class="primary-button compact practice-header-action" aria-label="新建实践" title="新建实践" :disabled="editingBusy" @click="openProject(true)"><Plus :size="17" /><span>新建实践</span></button>
     </div></header>
+
+    <ModuleHighlights module-id="module3" />
 
     <div v-if="!store.loaded || store.busy === 'loading'" class="state-panel practice-page-state"><span class="spinner" /><p>正在载入实践记录…</p></div>
     <div v-else class="practice-content">

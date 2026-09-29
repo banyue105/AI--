@@ -1,5 +1,6 @@
 .practice-shell { min-height: 100vh; padding-bottom: 64px; }
-.practice-header { height: 64px; position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(18px) saturate(130%); }
+.practice-header { height: 64px; position: sticky; top: var(--app-nav-height); z-index: 20; border-bottom: 1px solid var(--border); background: var(--glass); backdrop-filter: blur(18px) saturate(130%); }
+.practice-shell [id] { scroll-margin-top: calc(var(--app-nav-height) + var(--app-module-header-height) + 16px); }
 .practice-header-inner { max-width: 1320px; height: 100%; margin: auto; padding: 0 24px; display: flex; align-items: center; gap: 12px; }
 .practice-content { max-width: 1320px; margin: auto; padding: 24px; display: flex; flex-direction: column; gap: 28px; }
 .practice-content > *, .practice-dialog, .practice-workspace > * { min-width: 0; }

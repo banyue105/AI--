@@ -36,6 +36,8 @@ http://localhost:5173/ability
 
 ## 当前分工
 
+首页与全站导航按 [06 首页改版任务书](06-homepage-redesign-prompt.md) 执行：项目介绍 Banner、四模块简介入口、亮点展示及跨页面定位；其首页结构要求接替早期个人概览、三模块与底部导航要求。模块操作页继续遵守共享视觉合同。实施与验证见 [09 首页验收记录](09-homepage-redesign-acceptance.md)。
+
 | 人员 | 负责内容 | 分支建议 |
 |---|---|---|
 | 负责人 | 维护首页、能力成长、共享视觉 token、公共样式和最终前端集成 | `feature/ability-home` |

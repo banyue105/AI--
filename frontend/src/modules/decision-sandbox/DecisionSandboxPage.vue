@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ModuleHighlights from '../../app/ModuleHighlights.vue'
 import { computed, onMounted, ref, toRaw, watch } from 'vue'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, GitBranch, History, Plus, RotateCcw, Sparkles, Pencil, AlertCircle } from 'lucide-vue-next'
 import { useDecisionStore } from './stores/decisionStore'
@@ -152,7 +153,9 @@ function sourceLabel(source: string) { return ({ user: '用户确认', system: '
       </div>
     </header>
 
-    <main class="decision-content">
+    <ModuleHighlights module-id="decision-sandbox" />
+
+    <main id="page-content" class="decision-content" tabindex="-1">
       <div v-if="store.busy === 'loading' && !scene" class="state-panel page-loading" role="status"><span class="spinner"></span>正在加载决策场景…</div>
       <div v-else-if="!scene" class="state-panel decision-empty">
         <GitBranch :size="30" />
