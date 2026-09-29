@@ -6,6 +6,8 @@
 - [实践验证与复盘 `/module3`](src/modules/practice-review/README.md)
 - [职业规划 `/module4/match`](src/modules/career-planning/README.md)
 
+职业规划内部有 `/module4/match`、`/module4/jobs`、`/module4/jd` 三个子页，通过 `careerService` 和共享 `core/api/apiClient.ts` 访问 `/api/v1/career`。用户意向、目标岗位和报告快照由后端保存；模块四不使用能力成长的离线演示 fallback，需要同时启动后端。
+
 ## 本阶段已完成
 
 - 移动端优先的全局主页，包含用户概览、当前目标、最近活动和四个模块入口。

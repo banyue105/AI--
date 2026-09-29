@@ -1,6 +1,6 @@
 # Codex 协作计划书索引
 
-这组文件可以直接交给三位队员各自的 Codex。目标不仅是避免代码冲突，也要保证不同会话生成的页面属于同一套产品。
+这组文件可以直接交给各模块队员的 Codex。目标不仅是避免代码冲突，也要保证不同会话生成的页面属于同一套产品。
 
 ## 必读顺序
 
@@ -16,6 +16,9 @@
 - [模块一：能力成长与首页](01-ability-growth-and-home-prompt.md)
 - [模块二：决策沙盒](02-decision-sandbox-prompt.md)
 - [模块三：实践验证与复盘](03-practice-review-prompt.md)
+- [模块四：职业规划](04-career-planning-module.md)
+
+模块四本地同步与验证范围见 [同步记录](08-module4-sync.md)；这份记录保留本地工作区与远端提交的区别，不能将定向测试通过等同于全量验收。
 
 `03-module3-pending-prompt.md` 已归档，不再作为当前开发指令。
 
@@ -38,6 +41,7 @@ http://localhost:5173/ability
 | 负责人 | 维护首页、能力成长、共享视觉 token、公共样式和最终前端集成 | `feature/ability-home` |
 | 队员2 | 决策沙盒前后端，只新增 `.decision-*` 视觉实现 | `feature/decision-sandbox` |
 | 队员3 | 模块三“实践验证与复盘”前后端，复用现有基础设施 | `feature/practice-review` |
+| 模块四开发者 | 职业规划前后端，新增 `.career-*`；读取能力图谱，保存意向与报告 | `feature/career-planning` |
 
 ## 合并顺序
 
@@ -45,11 +49,12 @@ http://localhost:5173/ability
 
 ## 当前产品叙事
 
-已确定三个模块方向，完成状态按实际实现记录：
+已确定四个模块方向，完成状态按实际实现记录：
 
 1. 能力成长：建立能力结构和成长路径；
 2. 决策沙盒：模拟选择及其后果。
 3. 实践验证与复盘：P0 已实现，可独立检查成果材料、对比投入并保存参考反馈；已实现决策版本/方案只读关联。能力证据写入与反馈消费仍待联调，入口为 prototype。
+4. 职业规划：演示岗位匹配、筛选、JD 规则分析和报告快照；入口为 prototype，不是实际招聘服务。
 
 模块三的实际实现和验证范围见 [验收记录](05-practice-review-acceptance.md)，操作与 API 见 [模块 README](../frontend/src/modules/practice-review/README.md)。跨模块接口未打通时明确标记待联调，不在比赛材料中虚构功能。所有模块都应遵循：
 
@@ -75,4 +80,4 @@ AI 处理信息 → 形成结构化数据 → 网页进行可视化展示 → �
 
 前端开发服务器通过 `/api` 代理到 `http://localhost:8000`。生产部署时使用环境变量配置后端地址，不能把本地地址写死在业务组件中。
 
-后端使用 MyBatis、Flyway 和本地 MySQL。团队开始模块开发前，必须阅读 `00-shared-integration.md` 中的受控 AI 目录约束，以及 `00-ui-style-contract.md` 的能力成长动画基线。
+后端共享 MySQL 和 Flyway；模块一使用 MyBatis，模块二/三使用 JPA，模块四使用 JDBC。无 MySQL 时可用 demo profile 的 H2，但不能代替 MySQL 8.4 验收。团队开始模块开发前，必须阅读 `00-shared-integration.md` 中的受控 AI 目录约束，以及 `00-ui-style-contract.md` 的能力成长动画基线。

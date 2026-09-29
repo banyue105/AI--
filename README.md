@@ -96,6 +96,8 @@ mvn spring-boot:run -Dspring-boot.run.profiles=demo
 
 所有队员和 Codex 会话先阅读 [plans/README.md](plans/README.md)，再按其中顺序阅读共享技术合同、视觉合同、自己的模块任务书和合并验收表。
 
+模块四的本地同步范围、V8 迁移、启动方式和验证结果见 [模块四同步记录](plans/08-module4-sync.md)。岗位信息与参考匹配度仍为演示数据，不能当作实际招聘信息或录用概率。
+
 核心规则：
 
 - 不重建现有前端工程，不覆盖其他模块；

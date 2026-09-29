@@ -1,6 +1,6 @@
 # 拓界后端
 
-Java 21 + Spring Boot 3.5.16 + MyBatis Spring Boot Starter 3.0.5 + MySQL 8.4。当前实现用户资料、首页、能力图谱、成长路径计算和知识目录。用户资料、能力图谱与新增知识方向保存到数据库，表结构由 Flyway 管理。
+Java 21 + Spring Boot 3.5.16 + MyBatis Spring Boot Starter 3.0.5 + Spring Data JPA + MySQL 8.4。MyBatis 承载模块一的资料、能力图谱与知识目录；JPA 承载决策沙盒和实践复盘；JdbcTemplate 承载模块四职业规划。所有表结构由 Flyway 管理。
 
 版本组合遵循 [MyBatis Starter 兼容说明](https://mybatis.org/spring-boot-starter/mybatis-spring-boot-autoconfigure/)和 [Spring Boot 3.5 系统要求](https://docs.spring.io/spring-boot/3.5/system-requirements.html)：MyBatis Starter 3.0 系列适配 Spring Boot 3.2–3.5，Java 21 位于本项目 Spring Boot 版本的支持范围内。
 
@@ -33,6 +33,10 @@ docker compose up -d --wait
 ```
 
 默认 MySQL 端口为 `127.0.0.1:3307`，API 为 `127.0.0.1:8000`。应用启动时自动执行尚未应用的 Flyway 迁移，创建表和演示数据。Compose 使用命名卷保存数据库，普通服务重启会保留数据。
+
+本地无 MySQL 时，可用 `mvn spring-boot:run -Dspring-boot.run.profiles=demo` 运行四个模块。H2 文件默认保存在 `backend/target/demo-db.mv.db`；`DEMO_DB_PATH` 可指定不含扩展名的数据库路径。`mvn clean` 会删除 `target` 中的演示库和备份，需要长期保留的数据应放在构建目录之外。
+
+迁移顺序为模块一 V1–V4、决策沙盒 V5、实践复盘 V6–V7、职业规划 V8。V8 新增 `career_job`、`career_preference`、`career_report` 和 12 个演示岗位，不改写已执行的 V1–V7。升级已有数据库前先备份。
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
@@ -137,6 +141,8 @@ AI_DISABLE_THINKING=false
 
 常见状态码包括 400（参数/图关系无效）、404（用户或能力不存在）、409（名称或关联约束冲突）、503（数据库访问失败）。请求中的未知字段会被拒绝，前端应显示错误并允许用户重试。
 
+职业规划使用 `/api/v1/career` 下的 `jobs`、`matches`、`preferences`、`target`、`reports` 接口。偏好、目标岗位和报告按当前用户保存，报告保留生成时的能力快照；岗位及公司为演示数据。完整接口清单见 [模块四 README](../frontend/src/modules/career-planning/README.md)。
+
 ## 架构与数据库
 
 ```text
@@ -148,12 +154,20 @@ src/main/java/com/ican/assistant/
   core/ai/                        AbilityParser / KnowledgeGenerator 与本地实现
   modules/abilitygrowth/          DTO、Controller、Service、Mapper、成长路径规则
   modules/knowledge/              DTO、Controller、Service、Mapper
+  modules/decisionsandbox/        决策沙盒 JPA、规则与 API
+  modules/practicereview/          实践复盘 JPA、规则与 API
+  modules/careerplanning/          职业规划 JDBC、匹配规则与 API
 src/main/resources/
   application.yml                 连接、Flyway、MyBatis 和 Web 配置
   db/migration/
     V1__user_profile.sql           用户资料与目标文本
     V2__ability_growth.sql         技能、关系、证据、图谱更新时间与种子数据
     V3__knowledge_catalog.sql      已生成知识方向
+    V4__knowledge_track_users.sql   知识方向用户归属
+    V5__decision_sandbox.sql        决策沙盒
+    V6__practice_review.sql         实践复盘
+    V7__practice_unicode_capacity.sql  复盘 Unicode 容量
+    V8__career_planning.sql         职业规划、用户意向、报告与演示岗位
   knowledge/catalog.json          三个预置方向
 src/test/
   java/                           MockMvc 集成测试
